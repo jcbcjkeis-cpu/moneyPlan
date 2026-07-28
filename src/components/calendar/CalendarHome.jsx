@@ -3,9 +3,9 @@ import { exportExpensesToCsv } from '../../utils/exportToCsv';
 
 export default function CalendarHome({ onOpenModal, expenses = [] }) {
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
-  const budgetLimit = 500000; // 월 예산 50만 원 기준
+  const budgetLimit = 500000;
 
-  // 1. Supabase에서 넘어온 실제 지출 데이터 기반 총 지출액 계산
+  // DB에서 불러온 실제 expenses 배열만 계산
   const totalExpense = useMemo(() => {
     return expenses.reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
   }, [expenses]);
@@ -21,11 +21,10 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
     return 'bg-emerald-500';
   };
 
-  // 2. 일별 지출 데이터 및 남편/아내 도트 동적 매핑
   const dailyMap = useMemo(() => {
     const map = {};
     expenses.forEach((ex) => {
-      // 날짜 파싱 (YYYY-MM-DD 중 일자 추출)
+      if (!ex.expense_date) return;
       const dayNum = parseInt(ex.expense_date.split('-')[2], 10);
       if (!map[dayNum]) {
         map[dayNum] = { total: 0, husband: false, wife: false };
@@ -37,9 +36,9 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
     return map;
   }, [expenses]);
 
-  // 3. 선택한 날짜의 상세 지출 내역 필터링
   const selectedDayExpenses = useMemo(() => {
     return expenses.filter((ex) => {
+      if (!ex.expense_date) return false;
       const dayNum = parseInt(ex.expense_date.split('-')[2], 10);
       return dayNum === selectedDate;
     });
@@ -51,7 +50,6 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
 
   return (
     <div className="flex flex-col w-full min-h-screen pb-24">
-      {/* 예산 70% 이상 소진 시 경고 바 */}
       {consumptionRate >= 70 && (
         <div className={`text-white px-4 py-2.5 flex items-center justify-between text-xs font-bold shadow-md ${consumptionRate >= 100 ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'}`}>
           <div className="flex items-center space-x-1.5">
@@ -71,7 +69,6 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
         </div>
       </header>
 
-      {/* 월간 요약 & 예산 게이지 */}
       <section className="bg-white px-5 py-4 border-b border-slate-200 shadow-xs">
         <div className="flex justify-between items-baseline mb-2">
           <div>
@@ -100,7 +97,6 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
         </div>
       </section>
 
-      {/* 캘린더 그리드 */}
       <section className="bg-white p-3 flex-1 border-b border-slate-200">
         <div className="grid grid-cols-7 text-center pb-2 mb-1 border-b border-slate-100 text-[12px] font-semibold">
           <span className="text-rose-500">일</span>
@@ -148,7 +144,6 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
         </div>
       </section>
 
-      {/* 선택 일자 상세 내역 */}
       <section className="bg-slate-50 p-4 mt-2">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-bold text-slate-700 flex items-center space-x-1">
@@ -195,7 +190,7 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
             ))
           ) : (
             <div className="py-6 text-center text-xs text-slate-400 bg-white/50 rounded-xl border border-dashed border-slate-200">
-              이날은 등록된 지출 내역이 없습니다. 새로운 지출을 추가해 보세요! ➕
+              이날은 등록된 지출 내역이 없습니다. 알뜰한 무지출 데이인가요? ✨
             </div>
           )}
         </div>
