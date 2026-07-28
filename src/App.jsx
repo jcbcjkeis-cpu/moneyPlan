@@ -17,7 +17,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().getDate());
   const yearMonth = '2026-07';
 
-  // ★ useExpenses에서 deleteExpense 추출
+  // ★ deleteExpense 함수 추출 및 렌더링 확인
   const { expenses, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
   const { cards, budgetLimit, addCard, removeCard, updateBudget } = useSettings(yearMonth);
 
