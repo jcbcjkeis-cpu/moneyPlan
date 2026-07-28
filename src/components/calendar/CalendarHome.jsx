@@ -4,6 +4,7 @@ import { exportExpensesToCsv } from '../../utils/exportToCsv';
 export default function CalendarHome({
   onOpenModal,
   onOpenSettings,
+  onDeleteExpense,
   expenses = [],
   budgetLimit = 500000,
   currentUserRole,
@@ -171,7 +172,7 @@ export default function CalendarHome({
           {selectedDayExpenses.length > 0 ? (
             selectedDayExpenses.map((item) => (
               <div key={item.id} className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
-                <div className="flex items-center space-x-2.5 overflow-hidden">
+                <div className="flex items-center space-x-2.5 overflow-hidden flex-1">
                   <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md text-white shrink-0 ${item.payer === 'husband' ? 'bg-blue-500' : 'bg-rose-500'}`}>
                     {item.payer === 'husband' ? '🙋‍♂️ 남편' : '🙋‍♀️ 아내'}
                   </span>
@@ -180,10 +181,20 @@ export default function CalendarHome({
                     <p className="text-[10px] text-slate-400">{item.category}</p>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
+                
+                {/* ★ 금액 표시 및 휴지통 삭제 버튼 */}
+                <div className="flex items-center space-x-2 shrink-0 ml-2">
                   <span className={`text-xs font-extrabold ${item.is_income ? 'text-emerald-600' : 'text-slate-800'}`}>
                     {item.is_income ? '+' : '-'}{item.amount.toLocaleString()} <span className="text-[10px] font-normal">원</span>
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteExpense && onDeleteExpense(item.id, item.is_settled)}
+                    className="p-1 text-slate-300 hover:text-red-500 transition-colors text-sm"
+                    title="내역 삭제"
+                  >
+                    🗑️
+                  </button>
                 </div>
               </div>
             ))
