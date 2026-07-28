@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function BottomNav({ currentTab, onTabChange, onOpenModal }) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-[430px] mx-auto bg-white/90 backdrop-blur-md border-t border-slate-200/80 pb-safe shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-[430px] mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
       <div className="flex items-center justify-around h-16 px-2 relative">
         
         {/* 1. 가계부 홈 탭 */}
@@ -17,15 +17,15 @@ export default function BottomNav({ currentTab, onTabChange, onOpenModal }) {
           <span className="text-[11px]">가계부 홈</span>
         </button>
 
-        {/* 2. ★ 세련되게 솟아오른 중앙 플로팅 [+] 액션 버튼 */}
-        <div className="flex-1 flex justify-center -mt-6">
+        {/* 2. ★ 중앙에 크게 솟아오른 플로팅 액션 [+] 버튼 (UI 완전 개조) */}
+        <div className="flex-1 flex justify-center -mt-8">
           <button
             type="button"
             onClick={onOpenModal}
-            className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-indigo-500/30 border-4 border-slate-50 active:scale-95 hover:rotate-90 transition-all duration-300 group cursor-pointer"
+            className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-indigo-500/40 border-4 border-slate-50 active:scale-95 hover:rotate-90 transition-all duration-300 cursor-pointer"
             title="지출/수입 간편 등록"
           >
-            <span className="text-2xl font-light leading-none group-hover:scale-110 transition-transform">➕</span>
+            <span className="text-3xl font-light leading-none pb-0.5">➕</span>
           </button>
         </div>
 
