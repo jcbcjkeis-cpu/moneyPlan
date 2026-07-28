@@ -13,17 +13,28 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   const [currentUserRole, setCurrentUserRole] = useState(() => localStorage.getItem('my_role') || 'husband');
-  
   const [selectedDate, setSelectedDate] = useState(() => new Date().getDate());
-  const yearMonth = '2026-07';
+  
+  // 기준 연월 동적 상태 관리 (기본값: 접속 당월 YYYY-MM)
+  const [yearMonth, setYearMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
 
-  // ★ deleteExpense 함수 추출 및 렌더링 확인
+  const handleMonthChange = (offset) => {
+    const [y, m] = yearMonth.split('-').map(Number);
+    const date = new Date(y, m - 1 + offset, 1);
+    const newYm = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    setYearMonth(newYm);
+    setSelectedDate(1);
+  };
+
   const { expenses, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
-  const { cards, budgetLimit, addCard, removeCard, updateBudget } = useSettings(yearMonth);
+  const { cards, budgetLimit, nicknames, addCard, removeCard, updateBudget, updateNicknames } = useSettings();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between relative">
-      <main className="flex-1">
+    <div className="min-h-screen bg-slate-900 flex flex-col justify-between relative max-w-[430px] mx-auto shadow-2xl overflow-hidden">
+      <main className="flex-1 bg-slate-50 flex flex-col overflow-x-hidden">
         {currentTab === 'calendar' ? (
           <CalendarHome 
             onOpenModal={() => setIsModalOpen(true)}
@@ -31,6 +42,7 @@ export default function App() {
             onDeleteExpense={deleteExpense}
             expenses={expenses}
             budgetLimit={budgetLimit}
+            nicknames={nicknames}
             currentUserRole={currentUserRole}
             onRoleChange={(role) => {
               setCurrentUserRole(role);
@@ -39,11 +51,15 @@ export default function App() {
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
             yearMonth={yearMonth}
+            onPrevMonth={() => handleMonthChange(-1)}
+            onNextMonth={() => handleMonthChange(1)}
           />
         ) : (
           <CardSettlementTab 
             expenses={expenses} 
             cards={cards}
+            nicknames={nicknames}
+            yearMonth={yearMonth}
             onSettleMonth={settleMonthExpenses} 
           />
         )}
@@ -61,6 +77,7 @@ export default function App() {
         onSave={addExpense}
         currentUserRole={currentUserRole}
         cards={cards}
+        nicknames={nicknames}
         selectedDate={selectedDate}
         yearMonth={yearMonth}
       />
@@ -70,9 +87,12 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         cards={cards}
         budgetLimit={budgetLimit}
+        nicknames={nicknames}
+        yearMonth={yearMonth}
         onAddCard={addCard}
         onRemoveCard={removeCard}
         onUpdateBudget={updateBudget}
+        onUpdateNicknames={updateNicknames}
       />
     </div>
   );
