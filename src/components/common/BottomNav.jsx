@@ -2,40 +2,45 @@ import React from 'react';
 
 export default function BottomNav({ currentTab, onTabChange, onOpenModal }) {
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-6 py-2 pb-safe">
-      <div className="flex items-center justify-between relative">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-[430px] mx-auto bg-white/90 backdrop-blur-md border-t border-slate-200/80 pb-safe shadow-lg">
+      <div className="flex items-center justify-around h-16 px-2 relative">
+        
+        {/* 1. 가계부 홈 탭 */}
         <button
           type="button"
           onClick={() => onTabChange('calendar')}
-          className={`flex flex-col items-center justify-center w-20 py-1 transition-colors ${
-            currentTab === 'calendar' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors ${
+            currentTab === 'calendar' ? 'text-blue-600 font-extrabold' : 'text-slate-400 hover:text-slate-600 font-medium'
           }`}
         >
           <span className="text-xl mb-0.5">📅</span>
-          <span className="text-[11px] tracking-tight">캘린더</span>
+          <span className="text-[11px]">가계부 홈</span>
         </button>
 
-        <div className="absolute left-1/2 -top-5 -translate-x-1/2 flex flex-col items-center">
+        {/* 2. ★ 세련되게 솟아오른 중앙 플로팅 [+] 액션 버튼 */}
+        <div className="flex-1 flex justify-center -mt-6">
           <button
             type="button"
             onClick={onOpenModal}
-            className="w-13 h-13 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 active:scale-95 transition-transform border-4 border-slate-50"
-            aria-label="지출 내역 간편 입력"
+            className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-indigo-500/30 border-4 border-slate-50 active:scale-95 hover:rotate-90 transition-all duration-300 group cursor-pointer"
+            title="지출/수입 간편 등록"
           >
-            <span className="text-2xl font-light leading-none">➕</span>
+            <span className="text-2xl font-light leading-none group-hover:scale-110 transition-transform">➕</span>
           </button>
         </div>
 
+        {/* 3. 카드 정산 탭 */}
         <button
           type="button"
           onClick={() => onTabChange('settlement')}
-          className={`flex flex-col items-center justify-center w-20 py-1 transition-colors ${
-            currentTab === 'settlement' ? 'text-purple-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors ${
+            currentTab === 'settlement' ? 'text-purple-600 font-extrabold' : 'text-slate-400 hover:text-slate-600 font-medium'
           }`}
         >
-          <span className="text-xl mb-0.5">💳</span>
-          <span className="text-[11px] tracking-tight">카드/정산</span>
+          <span className="text-xl mb-0.5">🤝</span>
+          <span className="text-[11px]">카드/정산</span>
         </button>
+
       </div>
     </nav>
   );
