@@ -2,14 +2,13 @@ import React from 'react';
 
 export default function BottomNav({ currentTab, onTabChange, onOpenModal }) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-[430px] mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 max-w-[430px] mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.05)] select-none">
       <div className="flex items-center justify-around h-16 px-2 relative">
         
-        {/* 1. 가계부 홈 탭 */}
         <button
           type="button"
           onClick={() => onTabChange('calendar')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors ${
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors active:scale-95 ${
             currentTab === 'calendar' ? 'text-blue-600 font-extrabold' : 'text-slate-400 hover:text-slate-600 font-medium'
           }`}
         >
@@ -17,7 +16,7 @@ export default function BottomNav({ currentTab, onTabChange, onOpenModal }) {
           <span className="text-[11px]">가계부 홈</span>
         </button>
 
-        {/* 2. ★ 중앙에 크게 솟아오른 플로팅 액션 [+] 버튼 (UI 완전 개조) */}
+        {/* ★ 중앙에 솟아오른 트렌디 그라데이션 원형 버튼 */}
         <div className="flex-1 flex justify-center -mt-8">
           <button
             type="button"
@@ -29,11 +28,10 @@ export default function BottomNav({ currentTab, onTabChange, onOpenModal }) {
           </button>
         </div>
 
-        {/* 3. 카드 정산 탭 */}
         <button
           type="button"
           onClick={() => onTabChange('settlement')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors ${
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors active:scale-95 ${
             currentTab === 'settlement' ? 'text-purple-600 font-extrabold' : 'text-slate-400 hover:text-slate-600 font-medium'
           }`}
         >
