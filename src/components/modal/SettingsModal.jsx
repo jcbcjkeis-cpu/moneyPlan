@@ -13,9 +13,17 @@ export default function SettingsModal({
   const [newCardName, setNewCardName] = useState('');
   const [newCardOwner, setNewCardOwner] = useState('husband');
 
-  // ★ 핵심 해결: 모달이 열리거나 DB에서 예산이 갱신될 때마다 입력창 숫자 동기화
+  // ★ 핵심 2: 설정 모달 열릴 때도 바닥 화면(body) 스크롤 완벽 차단
   useEffect(() => {
-    setInputBudget(budgetLimit);
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      setInputBudget(budgetLimit);
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
   }, [budgetLimit, isOpen]);
 
   if (!isOpen) return null;
