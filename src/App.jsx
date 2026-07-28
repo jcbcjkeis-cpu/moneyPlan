@@ -14,11 +14,11 @@ export default function App() {
   
   const [currentUserRole, setCurrentUserRole] = useState(() => localStorage.getItem('my_role') || 'husband');
   
-  // ★ 캘린더에서 선택한 일자 상태 관리 (기본값: 접속 당일 일자)
   const [selectedDate, setSelectedDate] = useState(() => new Date().getDate());
-  const yearMonth = '2026-07'; // 기준 연월
+  const yearMonth = '2026-07';
 
-  const { expenses, addExpense, settleMonthExpenses } = useExpenses(yearMonth);
+  // ★ useExpenses에서 deleteExpense 추출
+  const { expenses, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
   const { cards, budgetLimit, addCard, removeCard, updateBudget } = useSettings(yearMonth);
 
   return (
@@ -28,6 +28,7 @@ export default function App() {
           <CalendarHome 
             onOpenModal={() => setIsModalOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onDeleteExpense={deleteExpense}
             expenses={expenses}
             budgetLimit={budgetLimit}
             currentUserRole={currentUserRole}
@@ -54,7 +55,6 @@ export default function App() {
         onOpenModal={() => setIsModalOpen(true)}
       />
 
-      {/* 지출/수입 입력 모달 (선택한 날짜 전달) */}
       <ExpenseInputModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -65,7 +65,6 @@ export default function App() {
         yearMonth={yearMonth}
       />
 
-      {/* 설정 모달 */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
