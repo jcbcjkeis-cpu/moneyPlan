@@ -14,7 +14,6 @@ export default function App() {
   
   const [currentUserRole, setCurrentUserRole] = useState(() => localStorage.getItem('my_role') || 'husband');
   
-  // DB 통신 훅 호출
   const { expenses, addExpense, settleMonthExpenses } = useExpenses('2026-07');
   const { cards, budgetLimit, addCard, removeCard, updateBudget } = useSettings('2026-07');
 
@@ -34,8 +33,10 @@ export default function App() {
             }}
           />
         ) : (
+          /* 실제 DB의 cards 목록을 CardSettlementTab에 넘김 */
           <CardSettlementTab 
             expenses={expenses} 
+            cards={cards}
             onSettleMonth={settleMonthExpenses} 
           />
         )}
@@ -47,7 +48,7 @@ export default function App() {
         onOpenModal={() => setIsModalOpen(true)}
       />
 
-      {/* 지출 입력 모달 (DB의 실제 카드 목록 연동) */}
+      {/* 모달에도 실제 DB의 cards 목록을 넘김 */}
       <ExpenseInputModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -56,7 +57,6 @@ export default function App() {
         cards={cards}
       />
 
-      {/* 가계부 설정 및 카드/예산 관리 모달 */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
