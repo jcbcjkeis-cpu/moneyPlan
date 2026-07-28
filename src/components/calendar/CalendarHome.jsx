@@ -1,9 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { exportExpensesToCsv } from '../../utils/exportToCsv';
 
-export default function CalendarHome({ onOpenModal, expenses = [] }) {
+export default function CalendarHome({
+  onOpenModal,
+  onOpenSettings,
+  expenses = [],
+  budgetLimit = 500000,
+  currentUserRole,
+  onRoleChange,
+}) {
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
-  const budgetLimit = 500000;
 
   // DB에서 불러온 실제 expenses 배열만 계산
   const totalExpense = useMemo(() => {
@@ -60,12 +66,47 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
         </div>
       )}
 
-      <header className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-        <button type="button" className="p-1 text-slate-400">◀</button>
-        <h1 className="text-base font-bold tracking-wide">2026년 7월 가계부</h1>
-        <div className="flex items-center space-x-3">
-          <button type="button" onClick={handleExport} className="text-xs bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded border border-slate-700 text-slate-300 transition" title="엑셀 백업">📥 엑셀</button>
-          <span className="text-lg">⚙️</span>
+      <header className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center space-x-2">
+          <h1 className="text-base font-extrabold tracking-wide">2026년 7월 가계부</h1>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          {/* 남편/아내 폰 기기 기억 스위치 */}
+          <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-[11px]">
+            <button
+              type="button"
+              onClick={() => onRoleChange('husband')}
+              className={`px-2 py-0.5 rounded font-bold transition ${currentUserRole === 'husband' ? 'bg-blue-500 text-white' : 'text-slate-400'}`}
+            >
+              👨 남편
+            </button>
+            <button
+              type="button"
+              onClick={() => onRoleChange('wife')}
+              className={`px-2 py-0.5 rounded font-bold transition ${currentUserRole === 'wife' ? 'bg-rose-500 text-white' : 'text-slate-400'}`}
+            >
+              👩 아내
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleExport}
+            className="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded border border-slate-700 text-slate-300 transition"
+            title="엑셀 백업"
+          >
+            📥
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="p-1.5 text-slate-300 hover:text-white transition text-lg"
+            title="설정 및 예산/카드 관리"
+          >
+            ⚙️
+          </button>
         </div>
       </header>
 
@@ -190,7 +231,7 @@ export default function CalendarHome({ onOpenModal, expenses = [] }) {
             ))
           ) : (
             <div className="py-6 text-center text-xs text-slate-400 bg-white/50 rounded-xl border border-dashed border-slate-200">
-              이날은 등록된 지출 내역이 없습니다. 알뜰한 무지출 데이인가요? ✨
+              이날은 등록된 지출 내역이 없습니다. 새로운 지출을 추가해 보세요! ➕
             </div>
           )}
         </div>
