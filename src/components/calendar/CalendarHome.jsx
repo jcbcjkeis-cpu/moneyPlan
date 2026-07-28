@@ -182,7 +182,7 @@ export default function CalendarHome({
                   </div>
                 </div>
                 
-                {/* ★ 금액 표시 및 터치 영역이 넉넉한 휴지통 삭제 버튼 */}
+                
                 <div className="flex items-center space-x-3 shrink-0">
                   <span className={`text-xs font-extrabold ${item.is_income ? 'text-emerald-600' : 'text-slate-800'}`}>
                     {item.is_income ? '+' : '-'}{item.amount.toLocaleString()} <span className="text-[10px] font-normal">원</span>
