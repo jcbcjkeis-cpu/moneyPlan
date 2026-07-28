@@ -23,7 +23,6 @@ export default function ExpenseInputModal({
   const [isSettledRequired, setIsSettledRequired] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ★ 선택된 당사자(남편/아내) 소유 카드 + 공용(joint) 카드만 필터링
   const filteredCards = useMemo(() => {
     return cards.filter((c) => c.owner === payer || c.owner === 'joint');
   }, [cards, payer]);
@@ -33,14 +32,13 @@ export default function ExpenseInputModal({
       const initialPayer = currentUserRole || 'husband';
       setPayer(initialPayer);
 
-      // 열릴 때 필터링된 첫 번째 카드를 기본 선택
       const availableCards = cards.filter((c) => c.owner === initialPayer || c.owner === 'joint');
       if (availableCards.length > 0) {
         setCardId(availableCards[0].id);
       } else {
         setCardId('');
       }
-      setTimeout(() => amountInputRef.current?.focus(), 150);
+      // ★ 해결: 기존에 있던 setTimeout focus() 코드를 완전히 삭제하여 가상 키보드 팝업 방지!
     } else {
       setAmount('');
       setMemo('');
@@ -83,7 +81,6 @@ export default function ExpenseInputModal({
       return;
     }
 
-    // 지출일 때만 결제 수단 필수 검사
     if (!isIncome && !cardId && filteredCards.length > 0) {
       alert('결제 수단을 선택해주세요.');
       return;
@@ -91,7 +88,6 @@ export default function ExpenseInputModal({
 
     setIsSubmitting(true);
 
-    // ★ 캘린더에서 선택한 일자(selectedDate)를 동적 조합하여 저장 (하드코딩 제거!)
     const formattedDate = String(selectedDate).padStart(2, '0');
     const targetDate = `${yearMonth}-${formattedDate}`;
 
@@ -102,7 +98,6 @@ export default function ExpenseInputModal({
       category: isIncome ? '💰 수입/입금' : category,
       content: memo || (isIncome ? '수입 등록' : category),
       payer: payer,
-      // ★ 수입일 때는 card_id를 null로 저장하여 카드 연동 제거
       card_id: isIncome ? null : (cardId ? Number(cardId) : null),
       is_joint_expense: !isIncome,
       is_settled: isIncome ? true : !isSettledRequired,
@@ -159,8 +154,8 @@ export default function ExpenseInputModal({
                 inputMode="numeric"
                 value={amount}
                 onChange={handleAmountChange}
-                placeholder="0"
-                className="w-full bg-transparent text-2xl font-extrabold text-slate-800 focus:outline-hidden tracking-tight placeholder:text-slate-300"
+                placeholder="0 (터치하여 금액 입력)"
+                className="w-full bg-transparent text-2xl font-extrabold text-slate-800 focus:outline-hidden tracking-tight placeholder:text-slate-300 placeholder:text-lg placeholder:font-normal"
                 required
               />
               <span className="text-base font-bold text-slate-600 ml-2">원</span>
@@ -180,7 +175,6 @@ export default function ExpenseInputModal({
             </div>
           </div>
 
-          {/* 대상자(남편/아내) 선택 */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-xs font-bold text-slate-700">{isIncome ? '수입 대상자' : '결제자 및 수단'}</label>
@@ -190,7 +184,6 @@ export default function ExpenseInputModal({
               </div>
             </div>
 
-            {/* ★ 지출일 때만 결제 수단(카드) 필터링 표시, 수입은 선택 안 함! */}
             {!isIncome && (
               <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
                 {filteredCards.length > 0 ? (
