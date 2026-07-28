@@ -107,7 +107,7 @@ export default function CardSettlementTab({
               subTab === 'settlement' ? 'border-purple-600 text-purple-600 bg-purple-50/50 rounded-t-xl' : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
-            🤝 부부 상호 정산
+            🤝 상호 정산
             {settlementData.unsettledList.length > 0 && (
               <span className="absolute top-2 right-4 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
             )}
@@ -234,7 +234,7 @@ export default function CardSettlementTab({
               }`}
             >
               <span>🤝</span>
-              <span>{isSettling ? '정산 처리 중...' : `${yearMonth.split('-')[1]}월 부부 상호 정산 완료하기`}</span>
+              <span>{isSettling ? '정산 처리 중...' : `${yearMonth.split('-')[1]}월 정산 완료하기`}</span>
             </button>
           </div>
         </div>
