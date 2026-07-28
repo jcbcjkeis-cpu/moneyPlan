@@ -27,8 +27,10 @@ export default function ExpenseInputModal({
     return cards.filter((c) => c.owner === payer || c.owner === 'joint');
   }, [cards, payer]);
 
+  // ★ 핵심 1: 모달 열릴 때 바닥 화면(body) 스크롤 완전 차단 (Body Scroll Lock)
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
       const initialPayer = currentUserRole || 'husband';
       setPayer(initialPayer);
 
@@ -38,13 +40,17 @@ export default function ExpenseInputModal({
       } else {
         setCardId('');
       }
-      // ★ 해결: 기존에 있던 setTimeout focus() 코드를 완전히 삭제하여 가상 키보드 팝업 방지!
+      // 자동 포커스 focus() 완벽 제거로 가상 키보드 자동 팝업 차단!
     } else {
+      document.body.style.overflow = 'unset';
       setAmount('');
       setMemo('');
       setIsIncome(false);
       setIsSubmitting(false);
     }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen, currentUserRole, cards]);
 
   const handlePayerChange = (newPayer) => {
