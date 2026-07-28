@@ -171,8 +171,8 @@ export default function CalendarHome({
         <div className="space-y-2">
           {selectedDayExpenses.length > 0 ? (
             selectedDayExpenses.map((item) => (
-              <div key={item.id} className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
-                <div className="flex items-center space-x-2.5 overflow-hidden flex-1">
+              <div key={item.id} className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                <div className="flex items-center space-x-2.5 overflow-hidden flex-1 pr-2">
                   <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md text-white shrink-0 ${item.payer === 'husband' ? 'bg-blue-500' : 'bg-rose-500'}`}>
                     {item.payer === 'husband' ? '🙋‍♂️ 남편' : '🙋‍♀️ 아내'}
                   </span>
@@ -182,15 +182,15 @@ export default function CalendarHome({
                   </div>
                 </div>
                 
-                {/* ★ 금액 표시 및 휴지통 삭제 버튼 */}
-                <div className="flex items-center space-x-2 shrink-0 ml-2">
+                {/* ★ 금액 표시 및 터치 영역이 넉넉한 휴지통 삭제 버튼 */}
+                <div className="flex items-center space-x-3 shrink-0">
                   <span className={`text-xs font-extrabold ${item.is_income ? 'text-emerald-600' : 'text-slate-800'}`}>
                     {item.is_income ? '+' : '-'}{item.amount.toLocaleString()} <span className="text-[10px] font-normal">원</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => onDeleteExpense && onDeleteExpense(item.id, item.is_settled)}
-                    className="p-1 text-slate-300 hover:text-red-500 transition-colors text-sm"
+                    className="p-1.5 bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition-colors text-base flex items-center justify-center cursor-pointer"
                     title="내역 삭제"
                   >
                     🗑️
