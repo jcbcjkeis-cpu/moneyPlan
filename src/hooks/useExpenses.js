@@ -4,25 +4,22 @@ import { supabase } from '../lib/supabase';
 export function useExpenses(yearMonth) {
   const [expenses, setExpenses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const fetchExpenses = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
     try {
-      const { data, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from('expenses')
         .select('*')
-        .gte('expense_date', `${yearMonth}-01`)
-        .lte('expense_date', `${yearMonth}-31`)
+        .like('expense_date', `${yearMonth}%`)
         .order('expense_date', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
-      setExpenses(data || []);
+      if (!error && data) {
+        setExpenses(data);
+      }
     } catch (err) {
-      console.error('❌ 지출 내역 로드 실패:', err.message);
-      setError(err.message);
+      console.error('지출 로딩 실패:', err.message);
     } finally {
       setIsLoading(false);
     }
@@ -30,77 +27,72 @@ export function useExpenses(yearMonth) {
 
   useEffect(() => {
     fetchExpenses();
+  }, [fetchExpenses]);
 
-    const channel = supabase
-      .channel('public:expenses')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'expenses',
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newRecord = payload.new;
-            if (newRecord.expense_date.startsWith(yearMonth)) {
-              setExpenses((prev) => [newRecord, ...prev]);
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            setExpenses((prev) =>
-              prev.map((item) => (item.id === payload.new.id ? payload.new : item))
-            );
-          } else if (payload.eventType === 'DELETE') {
-            setExpenses((prev) => prev.filter((item) => item.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe();
+  // 지출/수입 신규 저장
+  const addExpense = async (newRecord) => {
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert([newRecord])
+      .select();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchExpenses, yearMonth]);
-
-  const addExpense = async (newExpense) => {
-    setExpenses((prev) => [newExpense, ...prev]);
-    const { error: insertError } = await supabase.from('expenses').insert([newExpense]);
-    if (insertError) {
-      console.error('❌ DB 저장 실패, 화면 롤백:', insertError);
-      fetchExpenses();
-      alert('데이터 저장 중 오류가 발생했습니다.');
+    if (!error && data) {
+      setExpenses((prev) => [data[0], ...prev]);
+    } else {
+      alert('내역 저장에 실패했습니다. DB 권한을 확인해주세요.');
+      console.error(error);
     }
   };
 
+  // ★ 기존 지출/수입 내역 삭제 기능 (안전 확인창 적용)
+  const deleteExpense = async (id, isSettled) => {
+    if (isSettled) {
+      if (!window.confirm('⚠️ 이미 부부간 정산이 완료된 내역입니다!\n삭제할 경우 과거 정산 차액에 오차가 발생할 수 있습니다.\n정말로 영구 삭제하시겠습니까?')) {
+        return;
+      }
+    } else {
+      if (!window.confirm('이 내역을 영구 삭제하시겠습니까?')) {
+        return;
+      }
+    }
+
+    const { error } = await supabase
+      .from('expenses')
+      .delete()
+      .eq('id', id);
+
+    if (!error) {
+      setExpenses((prev) => prev.filter((item) => item.id !== id));
+    } else {
+      alert('삭제 중 오류가 발생했습니다. DB 권한을 확인해주세요.');
+      console.error(error);
+    }
+  };
+
+  // 월간 전체 정산 완료 처리
   const settleMonthExpenses = async () => {
-    const unsettledIds = expenses
-      .filter((item) => item.is_joint_expense && !item.is_settled)
-      .map((item) => item.id);
-
-    if (unsettledIds.length === 0) return;
-
-    setExpenses((prev) =>
-      prev.map((item) => (unsettledIds.includes(item.id) ? { ...item, is_settled: true } : item))
-    );
-
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from('expenses')
       .update({ is_settled: true })
-      .in('id', unsettledIds);
+      .like('expense_date', `${yearMonth}%`)
+      .eq('is_joint_expense', true)
+      .eq('is_settled', false);
 
-    if (updateError) {
-      console.error('❌ 일괄 정산 DB 업데이트 실패:', updateError);
-      fetchExpenses();
-      throw updateError;
+    if (!error) {
+      setExpenses((prev) =>
+        prev.map((item) => (item.is_joint_expense ? { ...item, is_settled: true } : item))
+      );
+    } else {
+      throw error;
     }
   };
 
   return {
     expenses,
     isLoading,
-    error,
     addExpense,
+    deleteExpense,
     settleMonthExpenses,
-    refresh: fetchExpenses,
+    refreshExpenses: fetchExpenses,
   };
 }
