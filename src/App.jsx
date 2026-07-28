@@ -9,7 +9,9 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState('calendar');
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Supabase DB와 실시간 연동되는 훅 호출 (2026년 7월 기준)
+  const [currentUserRole, setCurrentUserRole] = useState(() => localStorage.getItem('my_role') || 'husband');
+  
+  // Supabase DB 연결 훅 (샘플 데이터 없음)
   const { expenses, addExpense, settleMonthExpenses } = useExpenses('2026-07');
 
   return (
@@ -38,6 +40,7 @@ export default function App() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={addExpense}
+        currentUserRole={currentUserRole}
       />
     </div>
   );
