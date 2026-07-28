@@ -3,6 +3,7 @@ import CalendarHome from './components/calendar/CalendarHome';
 import BottomNav from './components/common/BottomNav';
 import ExpenseInputModal from './components/modal/ExpenseInputModal';
 import CardSettlementTab from './components/settlement/CardSettlementTab';
+import StatisticsTab from './components/statistics/StatisticsTab';
 import SettingsModal from './components/modal/SettingsModal';
 import { useExpenses } from './hooks/useExpenses';
 import { useSettings } from './hooks/useSettings';
@@ -28,7 +29,7 @@ export default function App() {
     setSelectedDate(1);
   };
 
-  const { expenses, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
+  const { expenses, prevMonthExpenses, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
   const { 
     cards, 
     budgetLimit, 
@@ -45,7 +46,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-between relative max-w-[430px] mx-auto shadow-2xl overflow-hidden font-sans">
       <main className="flex-1 bg-slate-50 flex flex-col overflow-x-hidden relative">
-        {currentTab === 'calendar' ? (
+        {currentTab === 'calendar' && (
           <CalendarHome 
             onOpenModal={() => setIsModalOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)}
@@ -65,7 +66,22 @@ export default function App() {
             onPrevMonth={() => handleMonthChange(-1)}
             onNextMonth={() => handleMonthChange(1)}
           />
-        ) : (
+        )}
+
+        {/* ★ 신설된 소비 통계 탭 렌더링 */}
+        {currentTab === 'statistics' && (
+          <StatisticsTab 
+            expenses={expenses}
+            prevMonthExpenses={prevMonthExpenses}
+            budgetLimit={budgetLimit}
+            nicknames={nicknames}
+            yearMonth={yearMonth}
+            onPrevMonth={() => handleMonthChange(-1)}
+            onNextMonth={() => handleMonthChange(1)}
+          />
+        )}
+
+        {currentTab === 'settlement' && (
           <CardSettlementTab 
             expenses={expenses} 
             cards={cards}
@@ -76,10 +92,12 @@ export default function App() {
         )}
       </main>
 
+      {/* ★ 5구역 대칭 하단 네비게이션 (설정 모달 열기 핸들러 연결) */}
       <BottomNav
         currentTab={currentTab}
         onTabChange={(tab) => setCurrentTab(tab)}
         onOpenModal={() => setIsModalOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <ExpenseInputModal
