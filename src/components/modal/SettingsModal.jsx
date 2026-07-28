@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function SettingsModal({
   isOpen,
@@ -12,6 +12,11 @@ export default function SettingsModal({
   const [inputBudget, setInputBudget] = useState(budgetLimit);
   const [newCardName, setNewCardName] = useState('');
   const [newCardOwner, setNewCardOwner] = useState('husband');
+
+  // ★ 핵심 해결: 모달이 열리거나 DB에서 예산이 갱신될 때마다 입력창 숫자 동기화
+  useEffect(() => {
+    setInputBudget(budgetLimit);
+  }, [budgetLimit, isOpen]);
 
   if (!isOpen) return null;
 
@@ -33,7 +38,6 @@ export default function SettingsModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 max-w-[430px] mx-auto">
       <div className="w-full bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-fade-in">
         
-        {/* 헤더 */}
         <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100">
           <h2 className="text-base font-extrabold text-slate-800 flex items-center space-x-1.5">
             <span>⚙️</span>
@@ -44,7 +48,6 @@ export default function SettingsModal({
 
         <div className="p-5 overflow-y-auto space-y-6">
           
-          {/* 1. 이번 달 목표 예산 설정 */}
           <section className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
             <h3 className="text-xs font-extrabold text-slate-700 mb-2 flex items-center space-x-1">
               <span>🎯</span>
@@ -73,7 +76,6 @@ export default function SettingsModal({
             </p>
           </section>
 
-          {/* 2. 신규 결제 카드 등록 */}
           <section className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
             <h3 className="text-xs font-extrabold text-indigo-900 mb-2 flex items-center space-x-1">
               <span>💳</span>
@@ -122,7 +124,6 @@ export default function SettingsModal({
             </form>
           </section>
 
-          {/* 3. 등록된 카드 목록 및 삭제 */}
           <section>
             <h3 className="text-xs font-extrabold text-slate-700 mb-2 px-1">
               📋 현재 사용 중인 결제 수단 목록 ({cards.length}개)
