@@ -5,26 +5,30 @@ export default function SettingsModal({
   onClose,
   cards = [],
   budgetLimit = 500000,
+  nicknames = { husband: '남편', wife: '아내' },
+  yearMonth = '2026-07',
   onAddCard,
   onRemoveCard,
   onUpdateBudget,
+  onUpdateNicknames,
 }) {
   const [inputBudget, setInputBudget] = useState(budgetLimit);
   const [newCardName, setNewCardName] = useState('');
   const [newCardOwner, setNewCardOwner] = useState('husband');
+  const [hName, setHName] = useState(nicknames.husband);
+  const [wName, setWName] = useState(nicknames.wife);
 
-  // ★ 핵심 2: 설정 모달 열릴 때도 바닥 화면(body) 스크롤 완벽 차단
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       setInputBudget(budgetLimit);
+      setHName(nicknames.husband);
+      setWName(nicknames.wife);
     } else {
       document.body.style.overflow = 'unset';
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [budgetLimit, isOpen]);
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [budgetLimit, nicknames, isOpen]);
 
   if (!isOpen) return null;
 
@@ -35,6 +39,12 @@ export default function SettingsModal({
     onUpdateBudget(num);
   };
 
+  const handleNicknameSubmit = (e) => {
+    e.preventDefault();
+    if (!hName.trim() || !wName.trim()) return alert('두 분의 별명을 모두 입력해주세요.');
+    onUpdateNicknames(hName, wName);
+  };
+
   const handleCardSubmit = (e) => {
     e.preventDefault();
     if (!newCardName.trim()) return alert('카드 별칭을 입력해주세요.');
@@ -43,74 +53,112 @@ export default function SettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 max-w-[430px] mx-auto">
-      <div className="w-full bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 max-w-[430px] mx-auto animate-fade-in select-none">
+      <div className="w-full bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
         
-        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100">
-          <h2 className="text-base font-extrabold text-slate-800 flex items-center space-x-1.5">
-            <span>⚙️</span>
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100 bg-slate-50/50">
+          <h2 className="text-base font-black text-slate-800 flex items-center space-x-2">
+            <span className="text-lg">⚙️</span>
             <span>가계부 설정 & 카드/예산 관리</span>
           </h2>
-          <button type="button" onClick={onClose} className="text-lg font-bold text-slate-400 p-1">✕</button>
+          <button type="button" onClick={onClose} className="text-lg font-black text-slate-400 hover:text-slate-600 p-1 active:scale-75 transition">✕</button>
         </div>
 
-        <div className="p-5 overflow-y-auto space-y-6">
+        <div className="p-5 overflow-y-auto space-y-6 no-scrollbar">
           
-          <section className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-            <h3 className="text-xs font-extrabold text-slate-700 mb-2 flex items-center space-x-1">
-              <span>🎯</span>
-              <span>이번 달 목표 생활비 예산 설정</span>
+          {/* ★ 1. 남편/아내 커스텀 별명 설정 (DB 실시간 연동) */}
+          <section className="bg-gradient-to-br from-indigo-50/80 to-blue-50/50 p-4 rounded-2xl border border-indigo-100/80 shadow-2xs">
+            <h3 className="text-xs font-black text-indigo-950 mb-1 flex items-center space-x-1.5">
+              <span>✨</span>
+              <span>부부 커스텀 별명 설정 (DB 전역 동기화)</span>
             </h3>
+            <p className="text-[10px] font-bold text-indigo-700/80 mb-2.5">* 변경 시 남편 기기와 아내 기기 양쪽 모두의 UI에 동일하게 반영됩니다.</p>
+            <form onSubmit={handleNicknameSubmit} className="space-y-2">
+              <div className="flex space-x-2">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-indigo-900 mb-0.5">🙋‍♂️ 남편 별명</label>
+                  <input
+                    type="text"
+                    value={hName}
+                    onChange={(e) => setHName(e.target.value)}
+                    placeholder="예: 우리여보, 민수"
+                    className="w-full bg-white px-3 py-1.5 text-xs font-bold border border-indigo-200 rounded-xl focus:outline-hidden focus:border-indigo-600"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-indigo-900 mb-0.5">🙋‍♀️ 아내 별명</label>
+                  <input
+                    type="text"
+                    value={wName}
+                    onChange={(e) => setWName(e.target.value)}
+                    placeholder="예: 이쁜이, 지영"
+                    className="w-full bg-white px-3 py-1.5 text-xs font-bold border border-indigo-200 rounded-xl focus:outline-hidden focus:border-indigo-600"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-xs font-black transition shadow-sm active:scale-95 cursor-pointer"
+              >
+                별명 저장하기
+              </button>
+            </form>
+          </section>
+
+          {/* 2. 월간 고정 목표 예산 설정 */}
+          <section className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+            <h3 className="text-xs font-black text-slate-800 mb-1 flex items-center space-x-1.5">
+              <span>🎯</span>
+              <span>월간 목표 생활비 예산 (전체 월 고정 적용)</span>
+            </h3>
+            <p className="text-[10px] font-bold text-slate-400 mb-2.5">* 한 번 설정하면 과거 및 미래의 모든 달에 동일한 한도가 적용됩니다.</p>
             <form onSubmit={handleBudgetSubmit} className="flex space-x-2">
               <div className="flex-1 relative">
                 <input
                   type="number"
                   value={inputBudget}
                   onChange={(e) => setInputBudget(e.target.value)}
-                  className="w-full bg-white px-3 py-2 text-sm font-bold text-slate-800 border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-500"
-                  placeholder="예: 1000000"
+                  className="w-full bg-white px-3 py-2 text-sm font-black text-slate-800 border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-600"
                 />
-                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">원</span>
+                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-extrabold">원</span>
               </div>
               <button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition shadow-xs"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-black shrink-0 transition shadow-xs active:scale-95 cursor-pointer"
               >
                 예산 변경
               </button>
             </form>
-            <p className="text-[10px] text-slate-400 mt-1.5">
-              * 변경 즉시 캘린더 홈의 소진율 게이지와 한도 초과 알림에 반영됩니다.
-            </p>
           </section>
 
-          <section className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
-            <h3 className="text-xs font-extrabold text-indigo-900 mb-2 flex items-center space-x-1">
+          {/* 3. 신규 결제 카드 등록 */}
+          <section className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+            <h3 className="text-xs font-black text-slate-800 mb-2 flex items-center space-x-1.5">
               <span>💳</span>
               <span>새로운 결제 수단(카드/계좌) 등록</span>
             </h3>
             <form onSubmit={handleCardSubmit} className="space-y-2.5">
-              <div className="flex space-x-1 bg-white p-1 rounded-xl border border-indigo-200">
+              <div className="flex space-x-1 bg-white p-1 rounded-xl border border-slate-200">
                 <button
                   type="button"
                   onClick={() => setNewCardOwner('husband')}
-                  className={`flex-1 py-1 text-xs font-bold rounded-lg transition ${newCardOwner === 'husband' ? 'bg-blue-500 text-white shadow-xs' : 'text-slate-500'}`}
+                  className={`flex-1 py-1 text-xs font-black rounded-lg transition ${newCardOwner === 'husband' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400'}`}
                 >
-                  🙋‍♂️ 남편 카드
+                  🙋‍♂️ {nicknames.husband}
                 </button>
                 <button
                   type="button"
                   onClick={() => setNewCardOwner('wife')}
-                  className={`flex-1 py-1 text-xs font-bold rounded-lg transition ${newCardOwner === 'wife' ? 'bg-rose-500 text-white shadow-xs' : 'text-slate-500'}`}
+                  className={`flex-1 py-1 text-xs font-black rounded-lg transition ${newCardOwner === 'wife' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-400'}`}
                 >
-                  🙋‍♀️ 아내 카드
+                  🙋‍♀️ {nicknames.wife}
                 </button>
                 <button
                   type="button"
                   onClick={() => setNewCardOwner('joint')}
-                  className={`flex-1 py-1 text-xs font-bold rounded-lg transition ${newCardOwner === 'joint' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-500'}`}
+                  className={`flex-1 py-1 text-xs font-black rounded-lg transition ${newCardOwner === 'joint' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-400'}`}
                 >
-                  💜 공용 계좌
+                  💜 공용
                 </button>
               </div>
 
@@ -119,12 +167,12 @@ export default function SettingsModal({
                   type="text"
                   value={newCardName}
                   onChange={(e) => setNewCardName(e.target.value)}
-                  placeholder="카드 별칭 (예: 신한 딥드림, 카카오뱅크)"
-                  className="flex-1 bg-white px-3 py-2 text-xs border border-indigo-200 rounded-xl focus:outline-hidden focus:border-indigo-500"
+                  placeholder="카드 별칭 (예: 신한, 카뱅)"
+                  className="flex-1 bg-white px-3 py-2 text-xs font-bold border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-600"
                 />
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition shadow-xs"
+                  className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-black shrink-0 transition active:scale-95 cursor-pointer"
                 >
                   + 등록
                 </button>
@@ -132,28 +180,29 @@ export default function SettingsModal({
             </form>
           </section>
 
+          {/* 4. 등록된 카드 목록 */}
           <section>
-            <h3 className="text-xs font-extrabold text-slate-700 mb-2 px-1">
-              📋 현재 사용 중인 결제 수단 목록 ({cards.length}개)
+            <h3 className="text-xs font-black text-slate-700 mb-2 px-1">
+              📋 현재 사용 중인 결제 수단 ({cards.length}개)
             </h3>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1 no-scrollbar">
               {cards.map((card) => (
                 <div
                   key={card.id}
-                  className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between"
+                  className="bg-white p-3 rounded-2xl border border-slate-200/80 flex items-center justify-between shadow-2xs"
                 >
                   <div className="flex items-center space-x-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded text-white ${
-                      card.owner === 'husband' ? 'bg-blue-500' : card.owner === 'wife' ? 'bg-rose-500' : 'bg-purple-600'
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md text-white ${
+                      card.owner === 'husband' ? 'bg-blue-600' : card.owner === 'wife' ? 'bg-rose-600' : 'bg-purple-600'
                     }`}>
-                      {card.owner === 'husband' ? '남편' : card.owner === 'wife' ? '아내' : '공용'}
+                      {card.owner === 'husband' ? nicknames.husband : card.owner === 'wife' ? nicknames.wife : '공용'}
                     </span>
-                    <span className="text-xs font-bold text-slate-800">{card.card_name}</span>
+                    <span className="text-xs font-extrabold text-slate-800">{card.card_name}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => onRemoveCard(card.id)}
-                    className="text-[11px] text-red-500 hover:text-red-700 font-bold px-2 py-1 bg-red-50 rounded-lg transition"
+                    className="text-[11px] text-red-500 hover:text-red-700 font-black px-2.5 py-1 bg-red-50 hover:bg-red-100 rounded-xl transition active:scale-90 cursor-pointer"
                   >
                     삭제
                   </button>
