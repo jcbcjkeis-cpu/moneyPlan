@@ -15,7 +15,6 @@ export default function App() {
   const [currentUserRole, setCurrentUserRole] = useState(() => localStorage.getItem('my_role') || 'husband');
   const [selectedDate, setSelectedDate] = useState(() => new Date().getDate());
   
-  // 기준 연월 동적 상태 관리 (기본값: 접속 당월 YYYY-MM)
   const [yearMonth, setYearMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -30,11 +29,22 @@ export default function App() {
   };
 
   const { expenses, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
-  const { cards, budgetLimit, nicknames, addCard, removeCard, updateBudget, updateNicknames } = useSettings();
+  const { 
+    cards, 
+    budgetLimit, 
+    nicknames, 
+    bgImageUrl, 
+    addCard, 
+    removeCard, 
+    updateBudget, 
+    updateNicknames, 
+    uploadBackground, 
+    resetBackground 
+  } = useSettings();
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-between relative max-w-[430px] mx-auto shadow-2xl overflow-hidden">
-      <main className="flex-1 bg-slate-50 flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-slate-900 flex flex-col justify-between relative max-w-[430px] mx-auto shadow-2xl overflow-hidden font-sans">
+      <main className="flex-1 bg-slate-50 flex flex-col overflow-x-hidden relative">
         {currentTab === 'calendar' ? (
           <CalendarHome 
             onOpenModal={() => setIsModalOpen(true)}
@@ -43,6 +53,7 @@ export default function App() {
             expenses={expenses}
             budgetLimit={budgetLimit}
             nicknames={nicknames}
+            bgImageUrl={bgImageUrl}
             currentUserRole={currentUserRole}
             onRoleChange={(role) => {
               setCurrentUserRole(role);
@@ -88,11 +99,14 @@ export default function App() {
         cards={cards}
         budgetLimit={budgetLimit}
         nicknames={nicknames}
+        bgImageUrl={bgImageUrl}
         yearMonth={yearMonth}
         onAddCard={addCard}
         onRemoveCard={removeCard}
         onUpdateBudget={updateBudget}
         onUpdateNicknames={updateNicknames}
+        onUploadBackground={uploadBackground}
+        onResetBackground={resetBackground}
       />
     </div>
   );
