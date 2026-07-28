@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export default function SettingsModal({
   isOpen,
@@ -6,17 +6,22 @@ export default function SettingsModal({
   cards = [],
   budgetLimit = 500000,
   nicknames = { husband: '남편', wife: '아내' },
+  bgImageUrl,
   yearMonth = '2026-07',
   onAddCard,
   onRemoveCard,
   onUpdateBudget,
   onUpdateNicknames,
+  onUploadBackground,
+  onResetBackground,
 }) {
+  const fileInputRef = useRef(null);
   const [inputBudget, setInputBudget] = useState(budgetLimit);
   const [newCardName, setNewCardName] = useState('');
   const [newCardOwner, setNewCardOwner] = useState('husband');
   const [hName, setHName] = useState(nicknames.husband);
   const [wName, setWName] = useState(nicknames.wife);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -52,28 +57,82 @@ export default function SettingsModal({
     setNewCardName('');
   };
 
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    await onUploadBackground(file);
+    setIsUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 max-w-[430px] mx-auto animate-fade-in select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 max-w-[430px] mx-auto animate-fade-in select-none font-sans">
       <div className="w-full bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
         
         <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-base font-black text-slate-800 flex items-center space-x-2">
             <span className="text-lg">⚙️</span>
-            <span>가계부 설정 & 카드/예산 관리</span>
+            <span>가계부 설정 ({yearMonth.split('-')[1]}월)</span>
           </h2>
           <button type="button" onClick={onClose} className="text-lg font-black text-slate-400 hover:text-slate-600 p-1 active:scale-75 transition">✕</button>
         </div>
 
         <div className="p-5 overflow-y-auto space-y-6 no-scrollbar">
           
-          {/* ★ 1. 남편/아내 커스텀 별명 설정 (DB 실시간 연동) */}
+          {/* ★ 1. 나만의 배경 사진 업로드 / 미리보기 / 초기화 */}
+          <section className="bg-gradient-to-br from-slate-900 to-indigo-950 p-4 rounded-2xl border border-slate-800 text-white shadow-md relative overflow-hidden">
+            <h3 className="text-xs font-black text-indigo-200 mb-1.5 flex items-center space-x-1.5">
+              <span>🖼️</span>
+              <span>우리 부부만의 감성 배경 사진 설정</span>
+            </h3>
+            <p className="text-[10px] font-medium text-slate-300 mb-3">* 사진 등록 시 글자 가독성을 위해 자동으로 반투명 베일 효과가 합성됩니다.</p>
+            
+            {/* 현재 배경 미리보기 박스 */}
+            <div className="w-full h-24 rounded-xl overflow-hidden border border-white/20 relative mb-3 bg-slate-800 flex items-center justify-center">
+              <img src={bgImageUrl} alt="bg preview" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <span className="text-[11px] font-bold bg-black/60 px-2.5 py-1 rounded-full border border-white/30 text-white backdrop-blur-xs">
+                  {isUploading ? '📤 사진 업로드 중...' : '현재 적용된 배경 미리보기'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex space-x-2">
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileChange} 
+                className="hidden" 
+              />
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-2 rounded-xl text-xs font-black transition shadow-sm active:scale-95 flex items-center justify-center space-x-1 cursor-pointer disabled:opacity-50"
+              >
+                <span>📷</span>
+                <span>{isUploading ? '저장 중...' : '새 사진 업로드'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onResetBackground}
+                className="px-3 bg-slate-800 hover:bg-red-950 text-slate-300 hover:text-red-300 border border-slate-700 py-2 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
+                title="기본 테마로 초기화"
+              >
+                🗑️ 삭제
+              </button>
+            </div>
+          </section>
+
+          {/* 2. 남편/아내 커스텀 별명 설정 */}
           <section className="bg-gradient-to-br from-indigo-50/80 to-blue-50/50 p-4 rounded-2xl border border-indigo-100/80 shadow-2xs">
             <h3 className="text-xs font-black text-indigo-950 mb-1 flex items-center space-x-1.5">
               <span>✨</span>
               <span>부부 커스텀 별명 설정 (DB 전역 동기화)</span>
             </h3>
-            <p className="text-[10px] font-bold text-indigo-700/80 mb-2.5">* 변경 시 남편 기기와 아내 기기 양쪽 모두의 UI에 동일하게 반영됩니다.</p>
-            <form onSubmit={handleNicknameSubmit} className="space-y-2">
+            <form onSubmit={handleNicknameSubmit} className="space-y-2 mt-2">
               <div className="flex space-x-2">
                 <div className="flex-1">
                   <label className="block text-[10px] font-bold text-indigo-900 mb-0.5">🙋‍♂️ 남편 별명</label>
@@ -105,14 +164,13 @@ export default function SettingsModal({
             </form>
           </section>
 
-          {/* 2. 월간 고정 목표 예산 설정 */}
+          {/* 3. 월간 고정 목표 예산 설정 */}
           <section className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
             <h3 className="text-xs font-black text-slate-800 mb-1 flex items-center space-x-1.5">
               <span>🎯</span>
               <span>월간 목표 생활비 예산 (전체 월 고정 적용)</span>
             </h3>
-            <p className="text-[10px] font-bold text-slate-400 mb-2.5">* 한 번 설정하면 과거 및 미래의 모든 달에 동일한 한도가 적용됩니다.</p>
-            <form onSubmit={handleBudgetSubmit} className="flex space-x-2">
+            <form onSubmit={handleBudgetSubmit} className="flex space-x-2 mt-2">
               <div className="flex-1 relative">
                 <input
                   type="number"
@@ -131,7 +189,7 @@ export default function SettingsModal({
             </form>
           </section>
 
-          {/* 3. 신규 결제 카드 등록 */}
+          {/* 4. 신규 결제 카드 등록 */}
           <section className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
             <h3 className="text-xs font-black text-slate-800 mb-2 flex items-center space-x-1.5">
               <span>💳</span>
@@ -180,7 +238,7 @@ export default function SettingsModal({
             </form>
           </section>
 
-          {/* 4. 등록된 카드 목록 */}
+          {/* 5. 등록된 카드 목록 */}
           <section>
             <h3 className="text-xs font-black text-slate-700 mb-2 px-1">
               📋 현재 사용 중인 결제 수단 ({cards.length}개)
