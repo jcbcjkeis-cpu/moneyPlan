@@ -14,8 +14,12 @@ export default function App() {
   
   const [currentUserRole, setCurrentUserRole] = useState(() => localStorage.getItem('my_role') || 'husband');
   
-  const { expenses, addExpense, settleMonthExpenses } = useExpenses('2026-07');
-  const { cards, budgetLimit, addCard, removeCard, updateBudget } = useSettings('2026-07');
+  // ★ 캘린더에서 선택한 일자 상태 관리 (기본값: 접속 당일 일자)
+  const [selectedDate, setSelectedDate] = useState(() => new Date().getDate());
+  const yearMonth = '2026-07'; // 기준 연월
+
+  const { expenses, addExpense, settleMonthExpenses } = useExpenses(yearMonth);
+  const { cards, budgetLimit, addCard, removeCard, updateBudget } = useSettings(yearMonth);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between relative">
@@ -31,9 +35,11 @@ export default function App() {
               setCurrentUserRole(role);
               localStorage.setItem('my_role', role);
             }}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+            yearMonth={yearMonth}
           />
         ) : (
-          /* 실제 DB의 cards 목록을 CardSettlementTab에 넘김 */
           <CardSettlementTab 
             expenses={expenses} 
             cards={cards}
@@ -48,15 +54,18 @@ export default function App() {
         onOpenModal={() => setIsModalOpen(true)}
       />
 
-      {/* 모달에도 실제 DB의 cards 목록을 넘김 */}
+      {/* 지출/수입 입력 모달 (선택한 날짜 전달) */}
       <ExpenseInputModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={addExpense}
         currentUserRole={currentUserRole}
         cards={cards}
+        selectedDate={selectedDate}
+        yearMonth={yearMonth}
       />
 
+      {/* 설정 모달 */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
