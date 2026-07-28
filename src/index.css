@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
   /* 1. 모바일 오버스크롤 고무줄 바운스 현상 원천 차단 */
