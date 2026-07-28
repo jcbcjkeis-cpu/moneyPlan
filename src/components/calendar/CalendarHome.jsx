@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { exportExpensesToCsv } from '../../utils/exportToCsv';
 
 export default function CalendarHome({
@@ -8,10 +8,10 @@ export default function CalendarHome({
   budgetLimit = 500000,
   currentUserRole,
   onRoleChange,
+  selectedDate,
+  onSelectDate,
+  yearMonth = '2026-07',
 }) {
-  const [selectedDate, setSelectedDate] = useState(new Date().getDate());
-
-  // 1. 수입과 지출 분리 합산
   const totalExpense = useMemo(() => {
     return expenses.filter(e => !e.is_income).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
   }, [expenses]);
@@ -31,7 +31,6 @@ export default function CalendarHome({
     return 'bg-emerald-500';
   };
 
-  // 2. 일별 지출/수입 데이터 매핑
   const dailyMap = useMemo(() => {
     const map = {};
     expenses.forEach((ex) => {
@@ -60,7 +59,7 @@ export default function CalendarHome({
   }, [expenses, selectedDate]);
 
   const handleExport = () => {
-    exportExpensesToCsv(expenses, '2026-07');
+    exportExpensesToCsv(expenses, yearMonth);
   };
 
   return (
@@ -136,7 +135,7 @@ export default function CalendarHome({
               <button
                 key={day}
                 type="button"
-                onClick={() => setSelectedDate(day)}
+                onClick={() => onSelectDate(day)}
                 className={`relative flex flex-col items-center justify-start pt-1 rounded-lg border transition-all ${
                   isSelected ? 'border-blue-500 bg-blue-50/60 shadow-xs font-bold' : 'border-transparent hover:bg-slate-50'
                 }`}
