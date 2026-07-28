@@ -92,7 +92,7 @@ export default function App() {
         )}
       </main>
 
-      {/* ★ 5구역 대칭 하단 네비게이션 (설정 모달 열기 핸들러 연결) */}
+      
       <BottomNav
         currentTab={currentTab}
         onTabChange={(tab) => setCurrentTab(tab)}
