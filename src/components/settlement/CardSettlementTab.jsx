@@ -1,33 +1,37 @@
 import React, { useState, useMemo } from 'react';
-import { MOCK_PAYMENT_CARDS } from '../../constants/mockData';
 
-export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
+export default function CardSettlementTab({ expenses = [], cards = [], onSettleMonth }) {
   const [subTab, setSubTab] = useState('prediction');
   const [isSettling, setIsSettling] = useState(false);
 
+  // 1. 카드별 출금 대금 연산 (수입 is_income=true 는 제외하고 오직 지출만 집계)
   const cardSummary = useMemo(() => {
     const summary = {};
-    MOCK_PAYMENT_CARDS.forEach((card) => {
+    if (!cards || cards.length === 0) return [];
+
+    cards.forEach((card) => {
       summary[card.id] = { ...card, totalAmount: 0, count: 0 };
     });
 
     expenses.forEach((item) => {
-      if (item.card_id && summary[item.card_id]) {
+      // 수입이 아니면서 등록된 카드에 해당하는 결제건만 합산
+      if (!item.is_income && item.card_id && summary[item.card_id]) {
         summary[item.card_id].totalAmount += Number(item.amount || 0);
         summary[item.card_id].count += 1;
       }
     });
 
     return Object.values(summary);
-  }, [expenses]);
+  }, [expenses, cards]);
 
   const totalCardBilling = useMemo(() => {
     return cardSummary.reduce((acc, curr) => acc + curr.totalAmount, 0);
   }, [cardSummary]);
 
+  // 2. 부부 상호 정산 차액 연산 (수입 제외, 미정산 공동 생활비만)
   const settlementData = useMemo(() => {
     const unsettledJoints = expenses.filter(
-      (item) => item.is_joint_expense && !item.is_settled
+      (item) => !item.is_income && item.is_joint_expense && !item.is_settled
     );
 
     let husbandPaidForJoint = 0;
@@ -36,7 +40,8 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
     const wifeList = [];
 
     unsettledJoints.forEach((item) => {
-      const cardInfo = MOCK_PAYMENT_CARDS.find((c) => c.id === item.card_id);
+      const cardInfo = cards.find((c) => c.id === item.card_id);
+      // 공용 카드/계좌(joint)가 아닌 개인 소유 카드로 긁은 생활비만 상호 정산 대상
       if (cardInfo && cardInfo.owner !== 'joint') {
         if (item.payer === 'husband') {
           husbandPaidForJoint += Number(item.amount);
@@ -65,15 +70,15 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
       receiver,
       isBalanced: diff === 0,
     };
-  }, [expenses]);
+  }, [expenses, cards]);
 
   const handleConfirmSettlement = async () => {
     if (settlementData.unsettledList.length === 0) {
-      alert('정산할 미정산 내역이 없습니다.');
+      alert('정산할 미정산 생활비 내역이 없습니다.');
       return;
     }
 
-    if (window.confirm(`이번 달 미정산 생활비 ${settlementData.transferAmount.toLocaleString()}원 이체를 완료하셨습니까?\n확인 시 전체 내역이 정산 완료(is_settled=true)로 처리됩니다.`)) {
+    if (window.confirm(`이번 달 미정산 생활비 ${settlementData.transferAmount.toLocaleString()}원 이체를 완료하셨습니까?\n확인 시 지출 내역들이 정산 완료(is_settled=true)로 처리됩니다.`)) {
       setIsSettling(true);
       try {
         if (onSettleMonth) await onSettleMonth();
@@ -99,9 +104,7 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
             type="button"
             onClick={() => setSubTab('prediction')}
             className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition-all text-center ${
-              subTab === 'prediction'
-                ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
+              subTab === 'prediction' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-lg' : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
             💳 카드별 출금 대금
@@ -110,9 +113,7 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
             type="button"
             onClick={() => setSubTab('settlement')}
             className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition-all text-center relative ${
-              subTab === 'settlement'
-                ? 'border-purple-600 text-purple-600 bg-purple-50/50 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
+              subTab === 'settlement' ? 'border-purple-600 text-purple-600 bg-purple-50/50 rounded-t-lg' : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
             🤝 부부 상호 정산
@@ -126,16 +127,10 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
       {subTab === 'prediction' && (
         <div className="p-4 space-y-4 animate-fade-in">
           <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-2xl shadow-md">
-            <span className="text-[11px] text-indigo-200 font-semibold uppercase tracking-wider block mb-1">
-              🏦 다음 달 결제일 출금 예정 총액
-            </span>
+            <span className="text-[11px] text-indigo-200 font-semibold uppercase tracking-wider block mb-1">🏦 다음 달 결제일 출금 예정 총액</span>
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-extrabold tracking-tight">
-                {totalCardBilling.toLocaleString()} <span className="text-sm font-normal">원</span>
-              </span>
-              <span className="text-[11px] bg-indigo-800/80 px-2.5 py-1 rounded-full text-indigo-100 font-medium">
-                총 {expenses.length}건 결제
-              </span>
+              <span className="text-2xl font-extrabold tracking-tight">{totalCardBilling.toLocaleString()} <span className="text-sm font-normal">원</span></span>
+              <span className="text-[11px] bg-indigo-800/80 px-2.5 py-1 rounded-full text-indigo-100 font-medium">총 {cardSummary.reduce((a, b) => a + b.count, 0)}건 지출</span>
             </div>
             <p className="text-[11px] text-slate-300 mt-3 pt-3 border-t border-slate-800 flex items-center space-x-1">
               <span>💡</span>
@@ -145,51 +140,37 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
 
           <div className="space-y-2.5">
             <h3 className="text-xs font-bold text-slate-600 px-1">💳 등록된 결제 수단별 사용 현황</h3>
-            {cardSummary.map((card) => (
-              <div
-                key={card.id}
-                className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
-                    card.owner === 'husband' ? 'bg-blue-100 text-blue-700' :
-                    card.owner === 'wife' ? 'bg-rose-100 text-rose-700' : 'bg-purple-100 text-purple-700'
-                  }`}>
-                    {card.owner === 'husband' ? '남편' : card.owner === 'wife' ? '아내' : '공용'}
+            {cardSummary.length > 0 ? (
+              cardSummary.map((card) => (
+                <div key={card.id} className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                      card.owner === 'husband' ? 'bg-blue-100 text-blue-700' : card.owner === 'wife' ? 'bg-rose-100 text-rose-700' : 'bg-purple-100 text-purple-700'
+                    }`}>
+                      {card.owner === 'husband' ? '남편' : card.owner === 'wife' ? '아내' : '공용'}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-slate-800">{card.card_name}</h4>
+                      <span className="text-[11px] text-slate-400">{card.card_type === 'CREDIT' ? '신용카드' : '체크/계좌'}</span>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-extrabold text-slate-800">{card.card_name}</h4>
-                    <span className="text-[11px] text-slate-400">
-                      {card.settlement_day ? `매월 ${card.settlement_day}일 결제` : '계좌 즉시 출금'}
-                    </span>
+                  <div className="text-right">
+                    <span className="text-sm font-extrabold text-slate-800 block">{card.totalAmount.toLocaleString()} <span className="text-xs font-normal">원</span></span>
+                    <span className="text-[10px] text-slate-400">{card.count}건 결제</span>
                   </div>
                 </div>
-
-                <div className="text-right">
-                  <span className="text-sm font-extrabold text-slate-800 block">
-                    {card.totalAmount.toLocaleString()} <span className="text-xs font-normal">원</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    {card.count}건 결제
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-center text-xs text-slate-400 py-8 bg-white rounded-xl border border-dashed border-slate-200">등록된 카드 결제 내역이 없습니다.</div>
+            )}
           </div>
         </div>
       )}
 
       {subTab === 'settlement' && (
         <div className="p-4 space-y-4 animate-fade-in">
-          <div className={`p-5 rounded-2xl border shadow-md ${
-            settlementData.isBalanced
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-              : 'bg-purple-900 text-white border-purple-800'
-          }`}>
-            <span className="text-[11px] font-semibold opacity-80 block mb-1">
-              🤝 이번 달 생활비 상호 상계 결과
-            </span>
-            
+          <div className={`p-5 rounded-2xl border shadow-md ${settlementData.isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-purple-900 text-white border-purple-800'}`}>
+            <span className="text-[11px] font-semibold opacity-80 block mb-1">🤝 이번 달 생활비 상호 상계 결과</span>
             {settlementData.isBalanced ? (
               <div className="py-2 text-center">
                 <span className="text-3xl block mb-1">🎉</span>
@@ -199,15 +180,12 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
             ) : (
               <div>
                 <div className="text-lg font-extrabold leading-snug my-1.5">
-                  <span className="underline decoration-yellow-400 decoration-2 font-black">
-                    {settlementData.sender === 'husband' ? '🙋‍♂️ 남편' : '🙋‍♀️ 아내'}
-                  </span>
-                  이(가) {settlementData.receiver} 계좌로<br />
+                  <span className="underline decoration-yellow-400 decoration-2 font-black">{settlementData.sender === 'husband' ? '🙋‍♂️ 남편' : '🙋‍♀️ 아내'}</span>이(가) {settlementData.receiver} 계좌로<br />
                   총 <span className="text-yellow-300 text-2xl font-black">{settlementData.transferAmount.toLocaleString()}원</span>을 송금해 주세요!
                 </div>
                 <p className="text-[11px] text-purple-200 pt-3 mt-3 border-t border-purple-800/80 flex justify-between">
-                  <span>남편 지출: {settlementData.husbandPaidForJoint.toLocaleString()}원</span>
-                  <span>아내 지출: {settlementData.wifePaidForJoint.toLocaleString()}원</span>
+                  <span>남편 공용결제: {settlementData.husbandPaidForJoint.toLocaleString()}원</span>
+                  <span>아내 공용결제: {settlementData.wifePaidForJoint.toLocaleString()}원</span>
                 </p>
               </div>
             )}
@@ -215,10 +193,8 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-bold text-slate-700">
-                📋 개인 카드로 결제된 공용 생활비 ({settlementData.unsettledList.length}건)
-              </h3>
-              <span className="text-[10px] text-slate-400">정산 대상 내역</span>
+              <h3 className="text-xs font-bold text-slate-700">📋 개인 카드로 결제된 공용 생활비 ({settlementData.unsettledList.length}건)</h3>
+              <span className="text-[10px] text-slate-400">정산 대상 내역 (수입 제외)</span>
             </div>
 
             <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-100 space-y-2">
@@ -262,17 +238,12 @@ export default function CardSettlementTab({ expenses = [], onSettleMonth }) {
               disabled={isSettling || settlementData.unsettledList.length === 0}
               onClick={handleConfirmSettlement}
               className={`w-full py-4 rounded-2xl text-white font-extrabold text-sm shadow-lg transition-all flex items-center justify-center space-x-2 ${
-                settlementData.unsettledList.length === 0 || isSettling
-                  ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-[0.98] shadow-purple-500/25'
+                settlementData.unsettledList.length === 0 || isSettling ? 'bg-slate-300 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-purple-600 to-indigo-600 active:scale-[0.98] shadow-purple-500/25'
               }`}
             >
               <span>🤝</span>
               <span>{isSettling ? '정산 처리 중...' : '이번 달 부부 상호 정산 완료하기 (원터치)'}</span>
             </button>
-            <p className="text-center text-[10px] text-slate-400 mt-2">
-              * 정산 완료 클릭 시 위 내역들이 모두 정산 완료(is_settled = true)로 변경됩니다.
-            </p>
           </div>
         </div>
       )}
