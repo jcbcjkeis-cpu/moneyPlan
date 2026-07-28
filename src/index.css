@@ -1,11 +1,20 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer utilities {
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 20px);
+@layer base {
+  /* 1. 모바일 오버스크롤 고무줄 바운스 현상 원천 차단 */
+  html, body {
+    @apply bg-slate-900 text-slate-800 antialiased selection:bg-blue-500 selection:text-white;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
+
+  /* 2. iOS 및 안드로이드 부드러운 터치 스크롤 물성 적용 */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 3. 스크롤바 숨김 처리 (깔끔한 UI 유지) */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -15,20 +24,11 @@
   }
 }
 
-@keyframes slideUp {
-  from { transform: translateY(100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.animate-slide-up {
-  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-in-out forwards;
+@layer utilities {
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)];
+  }
+  .glass-header {
+    @apply bg-slate-900/90 backdrop-blur-lg border-b border-slate-800 shadow-sm;
+  }
 }
