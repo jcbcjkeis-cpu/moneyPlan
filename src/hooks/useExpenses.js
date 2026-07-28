@@ -3,21 +3,40 @@ import { supabase } from '../lib/supabase';
 
 export function useExpenses(yearMonth) {
   const [expenses, setExpenses] = useState([]);
+  const [prevMonthExpenses, setPrevMonthExpenses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // 선택된 연월에서 1달 전 연월 문자열(YYYY-MM) 계산
+  const getPrevYearMonth = (ym) => {
+    const [y, m] = ym.split('-').map(Number);
+    const date = new Date(y, m - 2, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  };
 
   const fetchExpenses = useCallback(async () => {
     setIsLoading(true);
+    const prevYm = getPrevYearMonth(yearMonth);
+
     try {
-      const { data, error } = await supabase
+      // 1. 이번 달 지출/수입 조회
+      const { data: currData, error: currError } = await supabase
         .from('expenses')
         .select('*')
         .like('expense_date', `${yearMonth}%`)
         .order('expense_date', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        setExpenses(data);
-      }
+      if (!currError && currData) setExpenses(currData);
+
+      // ★ 2. 전달 대비 통계 분석을 위한 직전 달 지출 데이터 조회
+      const { data: prevData, error: prevError } = await supabase
+        .from('expenses')
+        .select('*')
+        .like('expense_date', `${prevYm}%`)
+        .order('expense_date', { ascending: false });
+
+      if (!prevError && prevData) setPrevMonthExpenses(prevData);
+
     } catch (err) {
       console.error('지출 로딩 실패:', err.message);
     } finally {
@@ -29,7 +48,6 @@ export function useExpenses(yearMonth) {
     fetchExpenses();
   }, [fetchExpenses]);
 
-  // 지출/수입 신규 저장
   const addExpense = async (newRecord) => {
     const { data, error } = await supabase
       .from('expenses')
@@ -44,7 +62,6 @@ export function useExpenses(yearMonth) {
     }
   };
 
-  // ★ 기존 지출/수입 내역 삭제 기능 (안전 확인창 적용)
   const deleteExpense = async (id, isSettled) => {
     if (isSettled) {
       if (!window.confirm('⚠️ 이미 부부간 정산이 완료된 내역입니다!\n삭제할 경우 과거 정산 차액에 오차가 발생할 수 있습니다.\n정말로 영구 삭제하시겠습니까?')) {
@@ -69,7 +86,6 @@ export function useExpenses(yearMonth) {
     }
   };
 
-  // 월간 전체 정산 완료 처리
   const settleMonthExpenses = async () => {
     const { error } = await supabase
       .from('expenses')
@@ -89,6 +105,7 @@ export function useExpenses(yearMonth) {
 
   return {
     expenses,
+    prevMonthExpenses,
     isLoading,
     addExpense,
     deleteExpense,
