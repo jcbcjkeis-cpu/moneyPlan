@@ -29,12 +29,13 @@ export default function App() {
     setSelectedDate(1);
   };
 
-  const { expenses, prevMonthExpenses, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
+  const { expenses, prevMonthExpenses, isLoading: isExpensesLoading, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
   const { 
     cards, 
     budgetLimit, 
     nicknames, 
     bgImageUrl, 
+    isLoading: isSettingsLoading, 
     addCard, 
     removeCard, 
     updateBudget, 
@@ -42,6 +43,21 @@ export default function App() {
     uploadBackground, 
     resetBackground 
   } = useSettings();
+
+  // ★ 초기 로딩 스플래시 가드: 캐시가 없거나 최초 동기화 중일 때 세련된 로딩 화면 표시
+  const isInitialLoading = isSettingsLoading && (!cards || cards.length === 0);
+
+  if (isInitialLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center max-w-[430px] mx-auto text-white select-none font-sans relative overflow-hidden">
+        <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-2xl mb-4 animate-bounce">
+          <span className="text-3xl">💰</span>
+        </div>
+        <h1 className="text-sm font-black tracking-widest uppercase text-slate-300 mb-1">BUBOO MONEY PLAN</h1>
+        <p className="text-xs text-slate-500 font-medium">최신 가계부 데이터를 동기화하고 있습니다...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-between relative max-w-[430px] mx-auto shadow-2xl overflow-hidden font-sans">
@@ -68,7 +84,6 @@ export default function App() {
           />
         )}
 
-        {/* ★ 신설된 소비 통계 탭 렌더링 */}
         {currentTab === 'statistics' && (
           <StatisticsTab 
             expenses={expenses}
@@ -92,7 +107,6 @@ export default function App() {
         )}
       </main>
 
-      {/* ★ 5구역 대칭 하단 네비게이션 (설정 모달 열기 핸들러 연결) */}
       <BottomNav
         currentTab={currentTab}
         onTabChange={(tab) => setCurrentTab(tab)}
