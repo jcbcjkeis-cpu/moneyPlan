@@ -1,276 +1,186 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { EXPENSE_CATEGORIES } from '../../constants/mockData';
-import { useViewportFix } from '../../hooks/useViewportFix';
+import React, { useState, useEffect } from 'react';
+
+// ★ 부부 생활 밀착형 18종 세분화 카테고리
+const INCOME_CATEGORIES = ['급여/월급', '부수입/투잡', '상여/보너스', '이자/배당금', '용돈/지원금', '기타 수입'];
+const EXPENSE_CATEGORIES = [
+  '외식/배달', '장보기/식자재', '카페/간식', '교통/주유/차량', 
+  '주거/월세/관리비', '통신비/구독', '쇼핑/뷰티/의류', '문화/여가/여행', 
+  '의료/건강', '교육/육아', '경조사/선물', '보험/세금/기타'
+];
 
 export default function ExpenseInputModal({
   isOpen,
   onClose,
   onSave,
+  onUpdate,
+  editTarget, // ★ 수정할 기존 데이터 객체 (없으면 새 등록)
   currentUserRole,
   cards = [],
-  selectedDate = new Date().getDate(),
-  yearMonth = '2026-07',
+  nicknames = { husband: '남편', wife: '아내' },
+  selectedDate,
+  yearMonth,
 }) {
-  const amountInputRef = useRef(null);
-  const { viewportHeight, isKeyboardOpen } = useViewportFix();
-
+  const [date, setDate] = useState('');
   const [isIncome, setIsIncome] = useState(false);
   const [amount, setAmount] = useState('');
-  const [payer, setPayer] = useState(currentUserRole || 'husband');
+  const [category, setCategory] = useState('');
+  const [content, setContent] = useState('');
+  const [payer, setPayer] = useState(currentUserRole);
   const [cardId, setCardId] = useState('');
-  const [category, setCategory] = useState(EXPENSE_CATEGORIES[0].label);
-  const [memo, setMemo] = useState('');
-  const [isSettledRequired, setIsSettledRequired] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isJointExpense, setIsJointExpense] = useState(true);
 
-  const filteredCards = useMemo(() => {
-    return cards.filter((c) => c.owner === payer || c.owner === 'joint');
-  }, [cards, payer]);
-
-  // ★ 핵심 1: 모달 열릴 때 바닥 화면(body) 스크롤 완전 차단 (Body Scroll Lock)
+  // 모달이 열릴 때 데이터 세팅 (수정 모드 vs 신규 모드)
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      const initialPayer = currentUserRole || 'husband';
-      setPayer(initialPayer);
-
-      const availableCards = cards.filter((c) => c.owner === initialPayer || c.owner === 'joint');
-      if (availableCards.length > 0) {
-        setCardId(availableCards[0].id);
+      if (editTarget) {
+        // 기존 내역이 있으면 그대로 복원 (수정 모드)
+        setDate(editTarget.expense_date);
+        setIsIncome(editTarget.is_income);
+        setAmount(String(editTarget.amount));
+        setCategory(editTarget.category);
+        setContent(editTarget.content);
+        setPayer(editTarget.payer);
+        setCardId(editTarget.card_id || '');
+        setIsJointExpense(editTarget.is_joint_expense);
       } else {
-        setCardId('');
+        // 새 내역이면 기본값 세팅
+        setDate(`${yearMonth}-${String(selectedDate).padStart(2, '0')}`);
+        setIsIncome(false);
+        setAmount('');
+        setCategory(EXPENSE_CATEGORIES[0]);
+        setContent('');
+        setPayer(currentUserRole);
+        setCardId(cards.length > 0 ? cards[0].id : '');
+        setIsJointExpense(true);
       }
-      // 자동 포커스 focus() 완벽 제거로 가상 키보드 자동 팝업 차단!
     } else {
       document.body.style.overflow = 'unset';
-      setAmount('');
-      setMemo('');
-      setIsIncome(false);
-      setIsSubmitting(false);
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, currentUserRole, cards]);
-
-  const handlePayerChange = (newPayer) => {
-    setPayer(newPayer);
-    const availableCards = cards.filter((c) => c.owner === newPayer || c.owner === 'joint');
-    if (availableCards.length > 0) {
-      setCardId(availableCards[0].id);
-    } else {
-      setCardId('');
-    }
-  };
-
-  const handleAddAmount = (addValue) => {
-    const currentVal = parseInt(amount.replace(/[^0-9]/g, '') || '0', 10);
-    setAmount((currentVal + addValue).toLocaleString());
-  };
-
-  const handleAmountChange = (e) => {
-    const rawValue = e.target.value.replace(/[^0-9]/g, '');
-    if (!rawValue) {
-      setAmount('');
-    } else {
-      setAmount(parseInt(rawValue, 10).toLocaleString());
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const numericAmount = parseInt(amount.replace(/[^0-9]/g, ''), 10);
-    
-    if (!numericAmount || numericAmount <= 0) {
-      alert('올바른 금액을 입력해주세요.');
-      amountInputRef.current?.focus();
-      return;
-    }
-
-    if (!isIncome && !cardId && filteredCards.length > 0) {
-      alert('결제 수단을 선택해주세요.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    const formattedDate = String(selectedDate).padStart(2, '0');
-    const targetDate = `${yearMonth}-${formattedDate}`;
-
-    const newRecord = {
-      id: crypto.randomUUID(),
-      expense_date: targetDate,
-      amount: numericAmount,
-      category: isIncome ? '💰 수입/입금' : category,
-      content: memo || (isIncome ? '수입 등록' : category),
-      payer: payer,
-      card_id: isIncome ? null : (cardId ? Number(cardId) : null),
-      is_joint_expense: !isIncome,
-      is_settled: isIncome ? true : !isSettledRequired,
-      is_income: isIncome,
-      memo: memo,
-      created_at: new Date().toISOString(),
-    };
-
-    onSave(newRecord);
-    onClose();
-  };
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isOpen, editTarget, yearMonth, selectedDate, currentUserRole, cards]);
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs transition-opacity max-w-[430px] mx-auto">
-      <div 
-        className="w-full bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-slide-up pb-safe"
-        style={{ height: isKeyboardOpen ? `${viewportHeight}px` : 'auto' }}
-      >
-        <div className="flex items-center justify-between px-6 pt-4 pb-2 border-b border-slate-100 relative">
-          <div className="w-12 h-1.5 bg-slate-200 rounded-full absolute top-2.5 left-1/2 -translate-x-1/2" />
-          
-          <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200 mt-2">
-            <button
-              type="button"
-              onClick={() => setIsIncome(false)}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition ${!isIncome ? 'bg-rose-500 text-white shadow-xs' : 'text-slate-500'}`}
-            >
-              💸 지출 (생활비)
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsIncome(true)}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition ${isIncome ? 'bg-emerald-500 text-white shadow-xs' : 'text-slate-500'}`}
-            >
-              💰 수입 (월급/기타)
-            </button>
-          </div>
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!amount || isNaN(Number(amount))) return alert('정확한 금액을 숫자로 입력해주세요.');
+    if (!content.trim()) return alert('내역(어디서/무엇을)을 입력해주세요.');
 
-          <button type="button" onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 text-lg font-bold mt-1">✕</button>
+    const payload = {
+      expense_date: date,
+      is_income: isIncome,
+      amount: Number(amount),
+      category,
+      content: content.trim(),
+      payer,
+      card_id: isIncome ? null : (cardId || null),
+      is_joint_expense: isIncome ? false : isJointExpense,
+    };
+
+    if (editTarget) {
+      await onUpdate(editTarget.id, payload);
+    } else {
+      await onSave(payload);
+    }
+    onClose();
+  };
+
+  const currentCategories = isIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-4 animate-fade-in font-sans select-none">
+      <div className="w-full max-w-[430px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[90vh]">
+        
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100">
+          <h2 className="text-base font-black text-slate-800">
+            {editTarget ? '📝 내역 수정하기' : '💸 지출 / 수입 등록'}
+          </h2>
+          <button type="button" onClick={onClose} className="text-lg font-black text-slate-400 p-1 active:scale-75">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-5">
-          <div className={`p-3.5 rounded-2xl border ${isIncome ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200/80'}`}>
-            <div className="flex justify-between items-center mb-1">
-              <label className="text-[11px] font-bold text-slate-500">{isIncome ? '입금 금액' : '결제 금액'}</label>
-              <span className="text-[11px] font-bold text-indigo-600">📅 7월 {selectedDate}일 등록</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <input
-                ref={amountInputRef}
-                type="text"
-                inputMode="numeric"
-                value={amount}
-                onChange={handleAmountChange}
-                placeholder="0 (터치하여 금액 입력)"
-                className="w-full bg-transparent text-2xl font-extrabold text-slate-800 focus:outline-hidden tracking-tight placeholder:text-slate-300 placeholder:text-lg placeholder:font-normal"
-                required
-              />
-              <span className="text-base font-bold text-slate-600 ml-2">원</span>
-            </div>
-
-            <div className="flex space-x-1.5 mt-2.5 pt-2 border-t border-slate-200/60">
-              {[10000, 30000, 50000, 100000].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => handleAddAmount(val)}
-                  className="flex-1 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-600 hover:bg-blue-50 active:scale-95 transition"
-                >
-                  +{val / 10000}만
-                </button>
-              ))}
-            </div>
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 no-scrollbar">
+          
+          {/* 수입 / 지출 토글 */}
+          <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => { setIsIncome(false); setCategory(EXPENSE_CATEGORIES[0]); }}
+              className={`flex-1 py-2 text-xs font-black rounded-xl transition-all duration-200 ${!isIncome ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              💸 지출
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsIncome(true); setCategory(INCOME_CATEGORIES[0]); }}
+              className={`flex-1 py-2 text-xs font-black rounded-xl transition-all duration-200 ${isIncome ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              💰 수입
+            </button>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-slate-700">{isIncome ? '수입 대상자' : '결제자 및 수단'}</label>
-              <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                <button type="button" onClick={() => handlePayerChange('husband')} className={`px-2.5 py-0.5 text-[11px] font-bold rounded-md transition ${payer === 'husband' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>🙋‍♂️ 남편</button>
-                <button type="button" onClick={() => handlePayerChange('wife')} className={`px-2.5 py-0.5 text-[11px] font-bold rounded-md transition ${payer === 'wife' ? 'bg-rose-500 text-white' : 'text-slate-500'}`}>🙋‍♀️ 아내</button>
+          <div className="space-y-4">
+            <div className="flex space-x-3">
+              <div className="w-1/3 shrink-0">
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">📅 날짜</label>
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-3 text-xs font-bold text-slate-800" required />
               </div>
-            </div>
-
-            {!isIncome && (
-              <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
-                {filteredCards.length > 0 ? (
-                  filteredCards.map((card) => (
-                    <button
-                      key={card.id}
-                      type="button"
-                      onClick={() => setCardId(card.id)}
-                      className={`shrink-0 px-3 py-2 rounded-xl text-xs font-medium border transition-all flex items-center space-x-1.5 ${
-                        cardId === card.id ? 'border-indigo-600 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs' : 'border-slate-200 bg-white text-slate-600'
-                      }`}
-                    >
-                      <span>💳</span>
-                      <span>{card.card_name}</span>
-                    </button>
-                  ))
-                ) : (
-                  <div className="text-xs text-red-500 py-1 font-medium">⚠️ 해당 대상자의 등록된 카드가 없습니다. 설정(⚙️)에서 추가해주세요.</div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {!isIncome && (
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">카테고리 선택</label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {EXPENSE_CATEGORIES.map((cat) => {
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setCategory(cat.label)}
-                      className={`py-2 px-1 rounded-xl text-[11px] font-medium border text-center transition ${category === cat.label ? 'border-blue-500 bg-blue-500 text-white font-bold' : 'border-slate-200 bg-white text-slate-700'}`}
-                    >
-                      <span className="block text-base mb-0.5">{cat.icon}</span>
-                      <span className="truncate block">{cat.label.split(' ')[1]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <input
-              type="text"
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder={isIncome ? '예: 남편 7월 급여, 아내 부수입 입금' : '사용처 메모 (미입력 시 카테고리명 저장)'}
-              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden"
-            />
-
-            {!isIncome && (
-              <label className="flex items-center space-x-2.5 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isSettledRequired}
-                  onChange={(e) => setIsSettledRequired(e.target.checked)}
-                  className="w-4 h-4 rounded text-indigo-600"
-                />
-                <div className="text-xs">
-                  <span className="font-bold text-indigo-900 block">💡 공동 생활비 정산 필요</span>
-                  <span className="text-[10px] text-slate-500">개인 카드로 긁은 공용 지출인 경우 월말 부부 차액 계산에 포함</span>
+              <div className="flex-1">
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">누가 {isIncome ? '벌었나요?' : '결제했나요?'}</label>
+                <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200 h-[42px]">
+                  <button type="button" onClick={() => setPayer('husband')} className={`flex-1 text-[11px] font-black rounded-lg transition-colors ${payer === 'husband' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>{nicknames.husband}</button>
+                  <button type="button" onClick={() => setPayer('wife')} className={`flex-1 text-[11px] font-black rounded-lg transition-colors ${payer === 'wife' ? 'bg-rose-600 text-white' : 'text-slate-500'}`}>{nicknames.wife}</button>
                 </div>
-              </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">금액 (원)</label>
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-lg font-black text-slate-900" required />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">어디서 / 무엇을 (내역)</label>
+              <input type="text" value={content} onChange={(e) => setContent(e.target.value)} placeholder={isIncome ? "예: 당근마켓 판매, 7월 월급" : "예: 배달의민족, 이마트, 관리비"} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800" required />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">카테고리</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {currentCategories.map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategory(cat)}
+                    className={`py-2 text-[10px] font-bold rounded-lg border transition-all ${
+                      category === cat ? (isIncome ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-rose-50 border-rose-500 text-rose-700') : 'bg-white border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {!isIncome && (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">결제 카드 / 계좌</label>
+                  <select value={cardId} onChange={(e) => setCardId(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800">
+                    <option value="" disabled>카드를 선택하세요</option>
+                    {cards.map(c => <option key={c.id} value={c.id}>{c.card_name} ({c.owner === 'husband' ? nicknames.husband : c.owner === 'wife' ? nicknames.wife : '공용'})</option>)}
+                  </select>
+                </div>
+                <label className="flex items-center space-x-2 cursor-pointer pt-1">
+                  <input type="checkbox" checked={isJointExpense} onChange={(e) => setIsJointExpense(e.target.checked)} className="w-4 h-4 rounded text-blue-600 focus:ring-0" />
+                  <span className="text-[11px] font-bold text-slate-700">이 지출을 부부 공용 생활비 정산에 포함합니다.</span>
+                </label>
+              </div>
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={isSubmitting || !amount}
-            className={`w-full py-3.5 rounded-2xl text-white font-extrabold text-sm shadow-lg transition-all ${
-              !amount || isSubmitting
-                ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                : isIncome
-                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 shadow-emerald-500/25'
-                : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-500/25'
-            }`}
-          >
-            {isSubmitting ? '저장 중...' : isIncome ? '💰 수입 내역 저장하기' : '💸 지출 내역 저장하기'}
+          <button type="submit" className="w-full py-4 rounded-2xl bg-slate-900 hover:bg-black text-white font-black text-sm shadow-xl transition-all active:scale-95 cursor-pointer mt-4">
+            {editTarget ? '수정 사항 저장하기' : '등록 완료'}
           </button>
         </form>
       </div>
