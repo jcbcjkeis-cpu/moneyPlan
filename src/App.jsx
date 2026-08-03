@@ -13,6 +13,9 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
+  // ★ 신설: 수정할 지출 내역 데이터를 담아두는 상태
+  const [editTarget, setEditTarget] = useState(null);
+  
   const [currentUserRole, setCurrentUserRole] = useState(() => localStorage.getItem('my_role') || 'husband');
   const [selectedDate, setSelectedDate] = useState(() => new Date().getDate());
   
@@ -29,22 +32,18 @@ export default function App() {
     setSelectedDate(1);
   };
 
-  const { expenses, prevMonthExpenses, isLoading: isExpensesLoading, addExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
+  // 모달 열기 핸들러 (아이템이 들어오면 수정 모드, 없으면 새 등록 모드)
+  const handleOpenExpenseModal = (item = null) => {
+    setEditTarget(item);
+    setIsModalOpen(true);
+  };
+
+  const { expenses, prevMonthExpenses, isLoading: isExpensesLoading, addExpense, updateExpense, deleteExpense, settleMonthExpenses } = useExpenses(yearMonth);
   const { 
-    cards, 
-    budgetLimit, 
-    nicknames, 
-    bgImageUrl, 
-    isLoading: isSettingsLoading, 
-    addCard, 
-    removeCard, 
-    updateBudget, 
-    updateNicknames, 
-    uploadBackground, 
-    resetBackground 
+    cards, budgetLimit, nicknames, bgImageUrl, isLoading: isSettingsLoading, 
+    addCard, removeCard, updateBudget, updateNicknames, uploadBackground, resetBackground 
   } = useSettings();
 
-  // ★ 초기 로딩 스플래시 가드: 캐시가 없거나 최초 동기화 중일 때 세련된 로딩 화면 표시
   const isInitialLoading = isSettingsLoading && (!cards || cards.length === 0);
 
   if (isInitialLoading) {
@@ -64,7 +63,8 @@ export default function App() {
       <main className="flex-1 bg-slate-50 flex flex-col overflow-x-hidden relative">
         {currentTab === 'calendar' && (
           <CalendarHome 
-            onOpenModal={() => setIsModalOpen(true)}
+            onOpenModal={() => handleOpenExpenseModal(null)} // 새 등록
+            onEditExpense={handleOpenExpenseModal} // 수정 모드 전달
             onOpenSettings={() => setIsSettingsOpen(true)}
             onDeleteExpense={deleteExpense}
             expenses={expenses}
@@ -110,14 +110,17 @@ export default function App() {
       <BottomNav
         currentTab={currentTab}
         onTabChange={(tab) => setCurrentTab(tab)}
-        onOpenModal={() => setIsModalOpen(true)}
+        onOpenModal={() => handleOpenExpenseModal(null)}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
+      {/* 수정 기능이 장착된 모달 컴포넌트 */}
       <ExpenseInputModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={addExpense}
+        onUpdate={updateExpense}
+        editTarget={editTarget}
         currentUserRole={currentUserRole}
         cards={cards}
         nicknames={nicknames}
