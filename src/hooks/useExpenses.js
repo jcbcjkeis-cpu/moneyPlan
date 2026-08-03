@@ -6,7 +6,6 @@ export function useExpenses(yearMonth) {
   const [prevMonthExpenses, setPrevMonthExpenses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 선택된 연월에서 1달 전 연월 문자열(YYYY-MM) 계산
   const getPrevYearMonth = (ym) => {
     const [y, m] = ym.split('-').map(Number);
     const date = new Date(y, m - 2, 1);
@@ -18,27 +17,44 @@ export function useExpenses(yearMonth) {
     const prevYm = getPrevYearMonth(yearMonth);
 
     try {
+      // ★ 해결: .like() 대신 완벽하게 안전한 날짜 구간(.gte, .lte) 검색으로 교체 (데이터 증발 원천 차단)
+      const startDate = `${yearMonth}-01`;
+      const endDate = `${yearMonth}-31`; 
+      
+      const prevStartDate = `${prevYm}-01`;
+      const prevEndDate = `${prevYm}-31`;
+
       // 1. 이번 달 지출/수입 조회
       const { data: currData, error: currError } = await supabase
         .from('expenses')
         .select('*')
-        .like('expense_date', `${yearMonth}%`)
+        .gte('expense_date', startDate)
+        .lte('expense_date', endDate)
         .order('expense_date', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (!currError && currData) setExpenses(currData);
+      if (currError) {
+        console.error('이번 달 데이터 로드 에러:', currError);
+      } else if (currData) {
+        setExpenses(currData);
+      }
 
-      // ★ 2. 전달 대비 통계 분석을 위한 직전 달 지출 데이터 조회
+      // 2. 직전 달 지출 데이터 조회 (통계용)
       const { data: prevData, error: prevError } = await supabase
         .from('expenses')
         .select('*')
-        .like('expense_date', `${prevYm}%`)
+        .gte('expense_date', prevStartDate)
+        .lte('expense_date', prevEndDate)
         .order('expense_date', { ascending: false });
 
-      if (!prevError && prevData) setPrevMonthExpenses(prevData);
+      if (prevError) {
+        console.error('저번 달 데이터 로드 에러:', prevError);
+      } else if (prevData) {
+        setPrevMonthExpenses(prevData);
+      }
 
     } catch (err) {
-      console.error('지출 로딩 실패:', err.message);
+      console.error('지출 로딩 런타임 에러:', err.message);
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +74,7 @@ export function useExpenses(yearMonth) {
       setExpenses((prev) => [data[0], ...prev]);
     } else {
       alert('내역 저장에 실패했습니다. DB 권한을 확인해주세요.');
-      console.error(error);
+      console.error('추가 에러:', error);
     }
   };
 
@@ -82,15 +98,20 @@ export function useExpenses(yearMonth) {
       setExpenses((prev) => prev.filter((item) => item.id !== id));
     } else {
       alert('삭제 중 오류가 발생했습니다. DB 권한을 확인해주세요.');
-      console.error(error);
+      console.error('삭제 에러:', error);
     }
   };
 
   const settleMonthExpenses = async () => {
+    // 정산 업데이트 시에도 .like 대신 구간 검색 사용
+    const startDate = `${yearMonth}-01`;
+    const endDate = `${yearMonth}-31`;
+
     const { error } = await supabase
       .from('expenses')
       .update({ is_settled: true })
-      .like('expense_date', `${yearMonth}%`)
+      .gte('expense_date', startDate)
+      .lte('expense_date', endDate)
       .eq('is_joint_expense', true)
       .eq('is_settled', false);
 
@@ -99,6 +120,7 @@ export function useExpenses(yearMonth) {
         prev.map((item) => (item.is_joint_expense ? { ...item, is_settled: true } : item))
       );
     } else {
+      console.error('정산 에러:', error);
       throw error;
     }
   };
