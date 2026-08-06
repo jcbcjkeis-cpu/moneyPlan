@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 
-// ★ 부부 생활 밀착형 18종 세분화 카테고리
+// ★ 개편된 카테고리 목록
 const INCOME_CATEGORIES = ['급여/월급', '부수입/투잡', '상여/보너스', '이자/배당금', '용돈/지원금', '기타 수입'];
 const EXPENSE_CATEGORIES = [
-  '외식/배달', '장보기/식자재', '카페/간식', '교통/주유/차량', 
-  '주거/월세/관리비', '통신비/구독', '쇼핑/뷰티/의류', '문화/여가/여행', 
-  '의료/건강', '교육/육아', '경조사/선물', '보험/세금/기타'
+  '식비', '생필품', '장보기', '카페/간식', '교통/주유/차량', 
+  '쇼핑/뷰티/의류', '문화/여가/여행', '의료/건강', '교육/육아', 
+  '경조사/선물/용돈', '보험/세금', '공과금', '회비', '취미', '기타'
 ];
 
 export default function ExpenseInputModal({
@@ -13,7 +13,7 @@ export default function ExpenseInputModal({
   onClose,
   onSave,
   onUpdate,
-  editTarget, // ★ 수정할 기존 데이터 객체 (없으면 새 등록)
+  editTarget,
   currentUserRole,
   cards = [],
   nicknames = { husband: '남편', wife: '아내' },
@@ -29,30 +29,37 @@ export default function ExpenseInputModal({
   const [cardId, setCardId] = useState('');
   const [isJointExpense, setIsJointExpense] = useState(true);
 
-  // 모달이 열릴 때 데이터 세팅 (수정 모드 vs 신규 모드)
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       if (editTarget) {
-        // 기존 내역이 있으면 그대로 복원 (수정 모드)
         setDate(editTarget.expense_date);
         setIsIncome(editTarget.is_income);
         setAmount(String(editTarget.amount));
-        setCategory(editTarget.category);
         setContent(editTarget.content);
         setPayer(editTarget.payer);
         setCardId(editTarget.card_id || '');
         setIsJointExpense(editTarget.is_joint_expense);
+        
+        // ★ 과거 카테고리가 새 목록에 없으면 '기타'로 자동 편입 (고아 데이터 방지)
+        if (editTarget.is_income) {
+          setCategory(INCOME_CATEGORIES.includes(editTarget.category) ? editTarget.category : '기타 수입');
+        } else {
+          setCategory(EXPENSE_CATEGORIES.includes(editTarget.category) ? editTarget.category : '기타');
+        }
       } else {
-        // 새 내역이면 기본값 세팅
         setDate(`${yearMonth}-${String(selectedDate).padStart(2, '0')}`);
         setIsIncome(false);
         setAmount('');
         setCategory(EXPENSE_CATEGORIES[0]);
         setContent('');
         setPayer(currentUserRole);
-        setCardId(cards.length > 0 ? cards[0].id : '');
         setIsJointExpense(true);
+
+        // ★ 마지막에 썼던 결제 카드 자동 불러오기 로직
+        const lastUsedCard = localStorage.getItem('buboo_last_card');
+        const isValidCard = cards.some(c => c.id === lastUsedCard);
+        setCardId(isValidCard ? lastUsedCard : (cards.length > 0 ? cards[0].id : ''));
       }
     } else {
       document.body.style.overflow = 'unset';
@@ -83,6 +90,12 @@ export default function ExpenseInputModal({
     } else {
       await onSave(payload);
     }
+
+    // ★ 저장 시점에 방금 쓴 카드를 로컬에 기억
+    if (!isIncome && cardId) {
+      localStorage.setItem('buboo_last_card', cardId);
+    }
+
     onClose();
   };
 
@@ -91,32 +104,15 @@ export default function ExpenseInputModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-4 animate-fade-in font-sans select-none">
       <div className="w-full max-w-[430px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[90vh]">
-        
         <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100">
-          <h2 className="text-base font-black text-slate-800">
-            {editTarget ? '📝 내역 수정하기' : '💸 지출 / 수입 등록'}
-          </h2>
+          <h2 className="text-base font-black text-slate-800">{editTarget ? '📝 내역 수정하기' : '💸 지출 / 수입 등록'}</h2>
           <button type="button" onClick={onClose} className="text-lg font-black text-slate-400 p-1 active:scale-75">✕</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 no-scrollbar">
-          
-          {/* 수입 / 지출 토글 */}
           <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-            <button
-              type="button"
-              onClick={() => { setIsIncome(false); setCategory(EXPENSE_CATEGORIES[0]); }}
-              className={`flex-1 py-2 text-xs font-black rounded-xl transition-all duration-200 ${!isIncome ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              💸 지출
-            </button>
-            <button
-              type="button"
-              onClick={() => { setIsIncome(true); setCategory(INCOME_CATEGORIES[0]); }}
-              className={`flex-1 py-2 text-xs font-black rounded-xl transition-all duration-200 ${isIncome ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              💰 수입
-            </button>
+            <button type="button" onClick={() => { setIsIncome(false); setCategory(EXPENSE_CATEGORIES[0]); }} className={`flex-1 py-2 text-xs font-black rounded-xl transition-all duration-200 ${!isIncome ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}>💸 지출</button>
+            <button type="button" onClick={() => { setIsIncome(true); setCategory(INCOME_CATEGORIES[0]); }} className={`flex-1 py-2 text-xs font-black rounded-xl transition-all duration-200 ${isIncome ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}>💰 수입</button>
           </div>
 
           <div className="space-y-4">
@@ -148,16 +144,7 @@ export default function ExpenseInputModal({
               <label className="block text-[10px] font-bold text-slate-500 mb-1">카테고리</label>
               <div className="grid grid-cols-3 gap-1.5">
                 {currentCategories.map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setCategory(cat)}
-                    className={`py-2 text-[10px] font-bold rounded-lg border transition-all ${
-                      category === cat ? (isIncome ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-rose-50 border-rose-500 text-rose-700') : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    {cat}
-                  </button>
+                  <button key={cat} type="button" onClick={() => setCategory(cat)} className={`py-2 text-[10px] font-bold rounded-lg border transition-all ${category === cat ? (isIncome ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-rose-50 border-rose-500 text-rose-700') : 'bg-white border-slate-200 text-slate-600'}`}>{cat}</button>
                 ))}
               </div>
             </div>
