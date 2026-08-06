@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 
+const EXPENSE_CATEGORIES = ['식비', '생필품', '장보기', '카페/간식', '교통/주유/차량', '쇼핑/뷰티/의류', '문화/여가/여행', '의료/건강', '교육/육아', '경조사/선물/용돈', '보험/세금', '공과금', '회비', '취미', '기타'];
+
 export default function StatisticsTab({
   expenses = [],
   prevMonthExpenses = [],
@@ -11,20 +13,16 @@ export default function StatisticsTab({
 }) {
   const [year, month] = yearMonth.split('-').map(Number);
 
-  // 1. 이번 달 순수 지출 및 수입 연산
   const currExpenses = useMemo(() => expenses.filter(e => !e.is_income), [expenses]);
   const currIncome = useMemo(() => expenses.filter(e => e.is_income).reduce((acc, c) => acc + Number(c.amount || 0), 0), [expenses]);
   const currTotalSpend = useMemo(() => currExpenses.reduce((acc, c) => acc + Number(c.amount || 0), 0), [currExpenses]);
 
-  // 2. 전달 순수 지출 연산 (MOM 비교용)
   const prevExpenses = useMemo(() => prevMonthExpenses.filter(e => !e.is_income), [prevMonthExpenses]);
   const prevTotalSpend = useMemo(() => prevExpenses.reduce((acc, c) => acc + Number(c.amount || 0), 0), [prevExpenses]);
 
-  // 전달 대비 차액 및 증감률 연산 (0원 나눗셈 방어 로직 적용)
   const momDiff = currTotalSpend - prevTotalSpend;
   const momRate = prevTotalSpend > 0 ? Math.round((momDiff / prevTotalSpend) * 100) : null;
 
-  // 3. 예산 소진율 및 일평균 지출액 (오늘 날짜 또는 해당 월 말일 기준)
   const consumptionRate = Math.min(Math.round((currTotalSpend / budgetLimit) * 100), 100);
   const daysPassed = useMemo(() => {
     const now = new Date();
@@ -36,10 +34,8 @@ export default function StatisticsTab({
   
   const dailyAvgSpend = Math.round(currTotalSpend / daysPassed);
 
-  // 4. 남편 vs 아내 생활비 결제 비중 분석
   const roleShare = useMemo(() => {
-    let hSpend = 0;
-    let wSpend = 0;
+    let hSpend = 0, wSpend = 0;
     currExpenses.forEach(e => {
       if (e.payer === 'husband') hSpend += Number(e.amount || 0);
       else if (e.payer === 'wife') wSpend += Number(e.amount || 0);
@@ -50,14 +46,14 @@ export default function StatisticsTab({
     return { hSpend, wSpend, hRate, wRate, total };
   }, [currExpenses]);
 
-  // 5. 카테고리별 사용금액 및 비중 분석 (지출액 높은 순 정렬)
   const categoryStats = useMemo(() => {
     const map = {};
     currExpenses.forEach(e => {
-      const cat = e.category || '📦 기타 지출';
-      if (!map[cat]) map[cat] = { name: cat, amount: 0, count: 0 };
-      map[cat].amount += Number(e.amount || 0);
-      map[cat].count += 1;
+      // ★ 통계 계산 시 새 목록에 없는 구 카테고리 데이터는 무조건 '기타'로 합산 (고아 항목 차단)
+      const safeCat = EXPENSE_CATEGORIES.includes(e.category) ? e.category : '기타';
+      if (!map[safeCat]) map[safeCat] = { name: safeCat, amount: 0, count: 0 };
+      map[safeCat].amount += Number(e.amount || 0);
+      map[safeCat].count += 1;
     });
     
     const sorted = Object.values(map).sort((a, b) => b.amount - a.amount);
@@ -67,13 +63,10 @@ export default function StatisticsTab({
     }));
   }, [currExpenses, currTotalSpend]);
 
-  // 가장 돈을 많이 쓴 Top 1 카테고리
   const topCategory = categoryStats.length > 0 ? categoryStats[0] : null;
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50 pb-28 select-none font-sans animate-fade-in">
-      
-      {/* 상단 헤더 & 월 이동 */}
       <header className="bg-white/90 backdrop-blur-md px-5 py-3.5 flex items-center justify-between sticky top-0 z-30 border-b border-slate-200/80 shadow-xs">
         <div className="flex items-center space-x-1">
           <button type="button" onClick={onPrevMonth} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition active:scale-90">◀</button>
@@ -84,26 +77,18 @@ export default function StatisticsTab({
       </header>
 
       <div className="p-4 space-y-4">
-        
-        {/* 장표 1: 이번 달 생활비 요약 & 일평균 지출 */}
         <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-3xl shadow-xl border border-slate-800 relative overflow-hidden">
           <div className="absolute -right-6 -top-6 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
-          
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-extrabold text-indigo-300 uppercase tracking-wider flex items-center space-x-1">
               <span>💳</span><span>이번 달 총 지출액</span>
             </span>
-            <span className="text-xs font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-              수입 +{currIncome.toLocaleString()}원
-            </span>
+            <span className="text-xs font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/30">수입 +{currIncome.toLocaleString()}원</span>
           </div>
-
           <div className="flex items-baseline justify-between mb-4">
             <span className="text-3xl font-black tracking-tight">{currTotalSpend.toLocaleString()} <span className="text-base font-bold text-slate-400">원</span></span>
             <span className="text-xs font-bold text-slate-300">예산의 {consumptionRate}% 소진</span>
           </div>
-
-          {/* 일평균 지출 요약 뱃지 */}
           <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-medium text-slate-300">
             <span className="flex items-center space-x-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-400 block animate-pulse" />
@@ -113,7 +98,6 @@ export default function StatisticsTab({
           </div>
         </div>
 
-        {/* 장표 2: ★ 전달 대비 증감액 (MOM 정밀 분석) */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-black text-slate-800 flex items-center space-x-1.5">
@@ -121,14 +105,11 @@ export default function StatisticsTab({
               <span>전달({month - 1 > 0 ? month - 1 : 12}월) 대비 생활비 증감 분석</span>
             </h3>
             {momRate !== null && (
-              <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
-                momDiff <= 0 ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-rose-50 text-rose-600 border-rose-200'
-              }`}>
+              <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${momDiff <= 0 ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
                 {momDiff <= 0 ? `↓ ${Math.abs(momRate)}% 절약` : `↑ ${momRate}% 증가`}
               </span>
             )}
           </div>
-
           <div className="mt-3 flex items-baseline justify-between bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
             <div>
               <span className="text-[10px] font-bold text-slate-400 block mb-0.5">저번 달 총 지출액</span>
@@ -147,7 +128,6 @@ export default function StatisticsTab({
           </div>
         </div>
 
-        {/* 장표 3: 남편 vs 아내 생활비 지출 비중 바 */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-black text-slate-800 flex items-center space-x-1.5">
@@ -156,21 +136,10 @@ export default function StatisticsTab({
             </h3>
             <span className="text-[10px] font-bold text-slate-400">총 {currExpenses.length}건 결제</span>
           </div>
-
-          {/* 수평 스택 비율 바 */}
           <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden flex p-0.5 border border-slate-200/60 shadow-inner mb-3">
-            <div 
-              className="bg-gradient-to-r from-blue-600 to-blue-400 h-full rounded-l-full transition-all duration-700 relative group" 
-              style={{ width: `${roleShare.hRate}%` }}
-              title={`${nicknames.husband}: ${roleShare.hRate}%`}
-            />
-            <div 
-              className="bg-gradient-to-r from-rose-400 to-rose-600 h-full rounded-r-full transition-all duration-700 relative group" 
-              style={{ width: `${roleShare.wRate}%` }}
-              title={`${nicknames.wife}: ${roleShare.wRate}%`}
-            />
+            <div className="bg-gradient-to-r from-blue-600 to-blue-400 h-full rounded-l-full transition-all duration-700 relative" style={{ width: `${roleShare.hRate}%` }} />
+            <div className="bg-gradient-to-r from-rose-400 to-rose-600 h-full rounded-r-full transition-all duration-700 relative" style={{ width: `${roleShare.wRate}%` }} />
           </div>
-
           <div className="grid grid-cols-2 gap-2 text-xs font-bold">
             <div className="bg-blue-50/70 p-3 rounded-2xl border border-blue-100 flex justify-between items-center">
               <span className="text-blue-900">🙋‍♂️ {nicknames.husband}</span>
@@ -189,7 +158,6 @@ export default function StatisticsTab({
           </div>
         </div>
 
-        {/* 장표 4: ★ 카테고리별 사용금액 및 비중 (지출 Top 순위) */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="text-xs font-black text-slate-800 flex items-center space-x-1.5">
@@ -197,12 +165,9 @@ export default function StatisticsTab({
               <span>카테고리별 사용 금액 및 비중</span>
             </h3>
             {topCategory && (
-              <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
-                1위: {topCategory.name.split(' ')[1] || topCategory.name}
-              </span>
+              <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">1위: {topCategory.name.split(' ')[1] || topCategory.name}</span>
             )}
           </div>
-
           <div className="space-y-3.5">
             {categoryStats.length > 0 ? (
               categoryStats.map((cat, idx) => (
@@ -218,13 +183,8 @@ export default function StatisticsTab({
                       <span className="text-[10px] font-extrabold text-indigo-600 ml-1.5 w-8 inline-block text-right">{cat.rate}%</span>
                     </div>
                   </div>
-
-                  {/* 마이크로 프로그레스 바 */}
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-blue-600 to-indigo-500 h-full rounded-full transition-all duration-500 group-hover:brightness-110" 
-                      style={{ width: `${cat.rate}%` }} 
-                    />
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-500 h-full rounded-full transition-all duration-500 group-hover:brightness-110" style={{ width: `${cat.rate}%` }} />
                   </div>
                 </div>
               ))
