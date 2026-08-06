@@ -2,9 +2,12 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { exportExpensesToCsv } from '../../utils/exportToCsv';
 import { supabase } from '../../lib/supabase';
 
+const INCOME_CATEGORIES = ['급여/월급', '부수입/투잡', '상여/보너스', '이자/배당금', '용돈/지원금', '기타 수입'];
+const EXPENSE_CATEGORIES = ['식비', '생필품', '장보기', '카페/간식', '교통/주유/차량', '쇼핑/뷰티/의류', '문화/여가/여행', '의료/건강', '교육/육아', '경조사/선물/용돈', '보험/세금', '공과금', '회비', '취미', '기타'];
+
 export default function CalendarHome({
-  onOpenModal, // 새 등록
-  onEditExpense, // ★ 신설: 수정 모드
+  onOpenModal,
+  onEditExpense,
   onOpenSettings,
   onDeleteExpense,
   expenses = [],
@@ -22,26 +25,19 @@ export default function CalendarHome({
   const [year, month] = yearMonth.split('-').map(Number);
   const daysInMonth = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
   const firstDayOfWeek = useMemo(() => new Date(year, month - 1, 1).getDay(), [year, month]);
-
   const [toastMessage, setToastMessage] = useState(null);
 
   useEffect(() => {
     const channel = supabase
       .channel('realtime_expenses_alert')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'expenses' },
-        (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'expenses' }, (payload) => {
           const newEx = payload.new;
           const payerName = newEx.payer === 'husband' ? nicknames.husband : nicknames.wife;
           const typeText = newEx.is_income ? '💰 수입' : '💸 지출';
           const msg = `🔔 [실시간 알림] ${payerName}님이 방금 ${newEx.amount?.toLocaleString()}원(${newEx.content || typeText})을 등록했습니다!`;
-          
           setToastMessage(msg);
           setTimeout(() => { setToastMessage(null); }, 4000);
-        }
-      )
-      .subscribe();
+      }).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [nicknames]);
 
@@ -78,7 +74,6 @@ export default function CalendarHome({
 
   return (
     <div className="flex flex-col w-full min-h-screen pb-28 select-none font-sans relative overflow-hidden">
-      
       {toastMessage && (
         <div className="fixed top-14 left-0 right-0 z-50 max-w-[400px] mx-auto px-4 animate-slide-down pointer-events-none">
           <div className="bg-slate-900/95 text-white text-xs font-black px-4 py-3 rounded-2xl shadow-2xl border border-indigo-500/50 backdrop-blur-md flex items-center justify-between">
@@ -94,21 +89,19 @@ export default function CalendarHome({
       </div>
 
       <div className="relative z-10 flex flex-col flex-1">
-        
         <header className="bg-white/70 backdrop-blur-md px-5 py-3 flex items-center justify-between sticky top-0 z-30 border-b border-white/50 shadow-xs transition-all">
           <div className="flex items-center space-x-1">
             <button type="button" onClick={onPrevMonth} className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center transition active:scale-90 shadow-2xs border border-white/60 cursor-pointer">◀</button>
             <h1 className="text-base font-bold text-slate-800 tracking-tight px-2 min-w-[90px] text-center">{year}년 {month}월</h1>
             <button type="button" onClick={onNextMonth} className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center transition active:scale-90 shadow-2xs border border-white/60 cursor-pointer">▶</button>
           </div>
-
           <div className="flex items-center space-x-2">
             <div className="flex items-center bg-white/60 backdrop-blur-sm p-1 rounded-full border border-white/80 text-xs font-semibold shadow-2xs">
               <button onClick={() => onRoleChange('husband')} className={`px-3 py-1 rounded-full transition-all duration-200 ${currentUserRole === 'husband' ? 'bg-white text-blue-600 shadow-xs font-bold border border-blue-100/50' : 'text-slate-500 hover:text-slate-700'}`}>{nicknames.husband}</button>
               <button onClick={() => onRoleChange('wife')} className={`px-3 py-1 rounded-full transition-all duration-200 ${currentUserRole === 'wife' ? 'bg-white text-rose-600 shadow-xs font-bold border border-rose-100/50' : 'text-slate-500 hover:text-slate-700'}`}>{nicknames.wife}</button>
             </div>
-            <button type="button" onClick={handleExport} className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center text-xs transition active:scale-90 shadow-2xs border border-white/60 cursor-pointer" title="엑셀 백업">📥</button>
-            <button type="button" onClick={onOpenSettings} className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center text-sm transition active:scale-90 shadow-2xs border border-white/60 cursor-pointer" title="설정">⚙️</button>
+            <button type="button" onClick={handleExport} className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center text-xs transition active:scale-90 shadow-2xs border border-white/60 cursor-pointer">📥</button>
+            <button type="button" onClick={onOpenSettings} className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center text-sm transition active:scale-90 shadow-2xs border border-white/60 cursor-pointer">⚙️</button>
           </div>
         </header>
 
@@ -153,8 +146,8 @@ export default function CalendarHome({
                       {dayData && dayData.income > 0 && <span className="text-[9px] font-bold text-emerald-600 tracking-tight">+{(dayData.income / 10000).toFixed(1)}</span>}
                     </div>
                     <div className="absolute bottom-1.5 flex space-x-1 items-center justify-center">
-                      {dayData?.husband && <span className="w-1 h-1 rounded-full bg-blue-500 block shadow-2xs" title={nicknames.husband} />}
-                      {dayData?.wife && <span className="w-1 h-1 rounded-full bg-rose-500 block shadow-2xs" title={nicknames.wife} />}
+                      {dayData?.husband && <span className="w-1 h-1 rounded-full bg-blue-500 block shadow-2xs" />}
+                      {dayData?.wife && <span className="w-1 h-1 rounded-full bg-rose-500 block shadow-2xs" />}
                     </div>
                   </button>
                 );
@@ -174,29 +167,34 @@ export default function CalendarHome({
 
           <div className="space-y-2">
             {selectedDayExpenses.length > 0 ? (
-              selectedDayExpenses.map((item) => (
-                <div key={item.id} className="bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-white/80 shadow-2xs hover:bg-white transition-all flex items-center justify-between">
-                  <div className="flex items-center space-x-3 overflow-hidden flex-1 pr-2">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs ${item.payer === 'husband' ? 'bg-blue-50/90 text-blue-600 border border-blue-100' : 'bg-rose-50/90 text-rose-600 border border-rose-100'}`}>
-                      {item.payer === 'husband' ? nicknames.husband.slice(0, 2) : nicknames.wife.slice(0, 2)}
+              selectedDayExpenses.map((item) => {
+                // ★ 과거 데이터에 안전한 카테고리 매핑 로직 (목록에 없으면 '기타')
+                const displayCategory = item.is_income
+                  ? (INCOME_CATEGORIES.includes(item.category) ? item.category : '기타 수입')
+                  : (EXPENSE_CATEGORIES.includes(item.category) ? item.category : '기타');
+
+                return (
+                  <div key={item.id} className="bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-white/80 shadow-2xs hover:bg-white transition-all flex items-center justify-between">
+                    <div className="flex items-center space-x-3 overflow-hidden flex-1 pr-2">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs ${item.payer === 'husband' ? 'bg-blue-50/90 text-blue-600 border border-blue-100' : 'bg-rose-50/90 text-rose-600 border border-rose-100'}`}>
+                        {item.payer === 'husband' ? nicknames.husband.slice(0, 2) : nicknames.wife.slice(0, 2)}
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-bold text-slate-800 truncate">{item.content}</p>
+                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">{displayCategory}</p>
+                      </div>
                     </div>
-                    <div className="truncate">
-                      <p className="text-xs font-bold text-slate-800 truncate">{item.content}</p>
-                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">{item.category}</p>
+                    
+                    <div className="flex items-center space-x-2 shrink-0">
+                      <span className={`text-xs font-bold tracking-tight pr-1 ${item.is_income ? 'text-emerald-600' : 'text-slate-800'}`}>
+                        {item.is_income ? '+' : '-'}{item.amount.toLocaleString()} <span className="text-[10px] font-normal text-slate-500">원</span>
+                      </span>
+                      <button type="button" onClick={() => onEditExpense(item)} className="w-7 h-7 rounded-lg bg-white/60 hover:bg-blue-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-colors text-sm active:scale-75 border border-white/80 cursor-pointer" title="내역 수정">✏️</button>
+                      <button type="button" onClick={() => onDeleteExpense(item.id, item.is_settled)} className="w-7 h-7 rounded-lg bg-white/60 hover:bg-rose-50 text-slate-400 hover:text-rose-500 flex items-center justify-center transition-colors text-sm active:scale-75 border border-white/80 cursor-pointer" title="내역 삭제">🗑️</button>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <span className={`text-xs font-bold tracking-tight pr-1 ${item.is_income ? 'text-emerald-600' : 'text-slate-800'}`}>
-                      {item.is_income ? '+' : '-'}{item.amount.toLocaleString()} <span className="text-[10px] font-normal text-slate-500">원</span>
-                    </span>
-                    {/* ★ 신설: 연필 수정 버튼 */}
-                    <button type="button" onClick={() => onEditExpense(item)} className="w-7 h-7 rounded-lg bg-white/60 hover:bg-blue-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-colors text-sm active:scale-75 border border-white/80 cursor-pointer" title="내역 수정">✏️</button>
-                    {/* 삭제 버튼 */}
-                    <button type="button" onClick={() => onDeleteExpense(item.id, item.is_settled)} className="w-7 h-7 rounded-lg bg-white/60 hover:bg-rose-50 text-slate-400 hover:text-rose-500 flex items-center justify-center transition-colors text-sm active:scale-75 border border-white/80 cursor-pointer" title="내역 삭제">🗑️</button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="py-10 text-center bg-white/60 backdrop-blur-sm rounded-2xl border border-dashed border-white/80">
                 <p className="text-xs font-medium text-slate-500 mb-1">이날은 등록된 내역이 없습니다</p>
