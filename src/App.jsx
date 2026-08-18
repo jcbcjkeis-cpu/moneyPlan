@@ -5,6 +5,7 @@ import ExpenseInputModal from './components/modal/ExpenseInputModal';
 import CardSettlementTab from './components/settlement/CardSettlementTab';
 import StatisticsTab from './components/statistics/StatisticsTab';
 import SettingsModal from './components/modal/SettingsModal';
+import PwaInstallManager from './components/common/PwaInstallManager'; // ★ 신규 컴포넌트 임포트
 import { useExpenses } from './hooks/useExpenses';
 import { useSettings } from './hooks/useSettings';
 
@@ -41,10 +42,12 @@ export default function App() {
     addCard, removeCard, updateBudget, updateNicknames, uploadBackground, resetBackground 
   } = useSettings();
 
-  // ★ 기존의 답답했던 블로킹 로딩 가드(isInitialLoading)를 전면 삭제하여 앱 실행 즉시 화면이 나타나도록 개조했습니다.
-
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-between relative max-w-[430px] mx-auto shadow-2xl overflow-hidden font-sans">
+      
+      {/* ★ 앱 미설치 시 브라우저 하단에 떠오르는 PWA 설치 유도 배너 */}
+      <PwaInstallManager />
+
       <main className="flex-1 bg-slate-50 flex flex-col overflow-x-hidden relative">
         {currentTab === 'calendar' && (
           <CalendarHome 
