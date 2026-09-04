@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 
 export default function CardSettlementTab({
   expenses = [],
-  cards = [],
+  allCards = [], // ★ 변경됨: 삭제 이력까지 포함된 전체 카드를 받아와서 매핑 결손 방어
   nicknames = { husband: '남편', wife: '아내' },
   yearMonth = '2026-07',
   onSettleMonth,
@@ -12,8 +12,10 @@ export default function CardSettlementTab({
 
   const cardSummary = useMemo(() => {
     const summary = {};
-    if (!cards || cards.length === 0) return [];
-    cards.forEach((card) => { summary[card.id] = { ...card, totalAmount: 0, count: 0 }; });
+    if (!allCards || allCards.length === 0) return [];
+    
+    // 삭제 여부와 상관없이 모든 카드를 기반으로 정산 테이블 생성
+    allCards.forEach((card) => { summary[card.id] = { ...card, totalAmount: 0, count: 0 }; });
 
     expenses.forEach((item) => {
       if (!item.is_income && item.card_id && summary[item.card_id]) {
@@ -21,17 +23,17 @@ export default function CardSettlementTab({
         summary[item.card_id].count += 1;
       }
     });
-    return Object.values(summary);
-  }, [expenses, cards]);
+    
+    // 0원인 빈 카드는 숨기고, 실 사용액이 있는 과거 삭제 카드만 표시하여 화면 오염 방지
+    return Object.values(summary).filter(c => c.count > 0 || c.is_active);
+  }, [expenses, allCards]);
 
   const totalCardBilling = useMemo(() => {
     return cardSummary.reduce((acc, curr) => acc + curr.totalAmount, 0);
   }, [cardSummary]);
 
   const settlementData = useMemo(() => {
-    const unsettledJoints = expenses.filter(
-      (item) => !item.is_income && item.is_joint_expense && !item.is_settled
-    );
+    const unsettledJoints = expenses.filter((item) => !item.is_income && item.is_joint_expense && !item.is_settled);
 
     let husbandPaid = 0;
     let wifePaid = 0;
@@ -39,7 +41,8 @@ export default function CardSettlementTab({
     const wifeList = [];
 
     unsettledJoints.forEach((item) => {
-      const cardInfo = cards.find((c) => c.id === item.card_id);
+      // ★ 여기도 allCards 참조
+      const cardInfo = allCards.find((c) => c.id === item.card_id);
       if (cardInfo && cardInfo.owner !== 'joint') {
         if (item.payer === 'husband') { husbandPaid += Number(item.amount); husbandList.push(item); }
         else if (item.payer === 'wife') { wifePaid += Number(item.amount); wifeList.push(item); }
@@ -49,23 +52,15 @@ export default function CardSettlementTab({
     const diff = Math.abs(husbandPaid - wifePaid);
     const transferAmount = Math.round(diff / 2);
     const senderRole = husbandPaid > wifePaid ? 'wife' : 'husband';
-    const senderName = senderRole === 'wife' ? nicknames.wife : nicknames.husband;
-    const receiverName = senderRole === 'wife' ? nicknames.husband : nicknames.wife;
-
+    
     return {
-      unsettledList: unsettledJoints,
-      husbandPaid,
-      wifePaid,
-      husbandList,
-      wifeList,
-      diff,
-      transferAmount,
-      senderRole,
-      senderName,
-      receiverName,
+      unsettledList: unsettledJoints, husbandPaid, wifePaid, husbandList, wifeList, diff,
+      transferAmount, senderRole, 
+      senderName: senderRole === 'wife' ? nicknames.wife : nicknames.husband,
+      receiverName: senderRole === 'wife' ? nicknames.husband : nicknames.wife,
       isBalanced: diff === 0,
     };
-  }, [expenses, cards, nicknames]);
+  }, [expenses, allCards, nicknames]);
 
   const handleConfirmSettlement = async () => {
     if (settlementData.unsettledList.length === 0) return alert('정산할 미정산 생활비 내역이 없습니다.');
@@ -91,26 +86,10 @@ export default function CardSettlementTab({
         </h2>
         
         <div className="flex space-x-2">
-          <button
-            type="button"
-            onClick={() => setSubTab('prediction')}
-            className={`flex-1 py-2.5 text-xs font-black border-b-2 transition-all text-center ${
-              subTab === 'prediction' ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl' : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            💳 카드별 출금 대금
-          </button>
-          <button
-            type="button"
-            onClick={() => setSubTab('settlement')}
-            className={`flex-1 py-2.5 text-xs font-black border-b-2 transition-all text-center relative ${
-              subTab === 'settlement' ? 'border-purple-600 text-purple-600 bg-purple-50/50 rounded-t-xl' : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-          >
+          <button type="button" onClick={() => setSubTab('prediction')} className={`flex-1 py-2.5 text-xs font-black border-b-2 transition-all text-center ${subTab === 'prediction' ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>💳 카드별 출금 대금</button>
+          <button type="button" onClick={() => setSubTab('settlement')} className={`flex-1 py-2.5 text-xs font-black border-b-2 transition-all text-center relative ${subTab === 'settlement' ? 'border-purple-600 text-purple-600 bg-purple-50/50 rounded-t-xl' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
             🤝 부부 상호 정산
-            {settlementData.unsettledList.length > 0 && (
-              <span className="absolute top-2 right-4 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
-            )}
+            {settlementData.unsettledList.length > 0 && <span className="absolute top-2 right-4 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />}
           </button>
         </div>
       </div>
@@ -134,13 +113,14 @@ export default function CardSettlementTab({
               cardSummary.map((card) => (
                 <div key={card.id} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between hover:border-slate-300 transition-all">
                   <div className="flex items-center space-x-3.5">
-                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 shadow-inner ${
-                      card.owner === 'husband' ? 'bg-blue-50 text-blue-600 border border-blue-100' : card.owner === 'wife' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-purple-50 text-purple-600 border border-purple-100'
-                    }`}>
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 shadow-inner ${card.owner === 'husband' ? 'bg-blue-50 text-blue-600 border border-blue-100' : card.owner === 'wife' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>
                       {card.owner === 'husband' ? nicknames.husband.slice(0, 2) : card.owner === 'wife' ? nicknames.wife.slice(0, 2) : '공용'}
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-slate-900">{card.card_name}</h4>
+                      <div className="flex items-center space-x-1.5">
+                        <h4 className="text-xs font-black text-slate-900">{card.card_name}</h4>
+                        {!card.is_active && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 rounded">삭제됨</span>}
+                      </div>
                       <span className="text-[10px] font-bold text-slate-400">{card.card_type === 'CREDIT' ? '신용카드' : '체크/계좌'}</span>
                     </div>
                   </div>
@@ -159,9 +139,7 @@ export default function CardSettlementTab({
 
       {subTab === 'settlement' && (
         <div className="p-4 space-y-4">
-          <div className={`p-6 rounded-3xl border shadow-lg relative overflow-hidden transition-all ${
-            settlementData.isBalanced ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-emerald-400' : 'bg-gradient-to-br from-purple-900 via-indigo-900 to-slate-900 text-white border-purple-800'
-          }`}>
+          <div className={`p-6 rounded-3xl border shadow-lg relative overflow-hidden transition-all ${settlementData.isBalanced ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-emerald-400' : 'bg-gradient-to-br from-purple-900 via-indigo-900 to-slate-900 text-white border-purple-800'}`}>
             <span className="text-[11px] font-extrabold opacity-80 uppercase tracking-wider block mb-1">🤝 부부 상호 상계 결과 ({yearMonth.split('-')[1]}월)</span>
             {settlementData.isBalanced ? (
               <div className="py-4 text-center">
