@@ -6,21 +6,9 @@ const INCOME_CATEGORIES = ['급여/월급', '부수입/투잡', '상여/보너�
 const EXPENSE_CATEGORIES = ['식비', '생필품', '장보기', '카페/간식', '교통/주유/차량', '쇼핑/뷰티/의류', '문화/여가/여행', '의료/건강', '교육/육아', '경조사/선물/용돈', '보험/세금', '공과금', '회비', '취미', '기타'];
 
 export default function CalendarHome({
-  onOpenModal,
-  onEditExpense,
-  onOpenSettings,
-  onDeleteExpense,
-  expenses = [],
-  budgetLimit = 500000,
-  nicknames = { husband: '남편', wife: '아내' },
-  bgImageUrl,
-  currentUserRole,
-  onRoleChange,
-  selectedDate,
-  onSelectDate,
-  yearMonth = '2026-07',
-  onPrevMonth,
-  onNextMonth,
+  onOpenModal, onEditExpense, onOpenSettings, onDeleteExpense, onRefresh, // ★ 추가됨
+  expenses = [], budgetLimit = 500000, nicknames = { husband: '남편', wife: '아내' }, bgImageUrl,
+  currentUserRole, onRoleChange, selectedDate, onSelectDate, yearMonth = '2026-07', onPrevMonth, onNextMonth,
 }) {
   const [year, month] = yearMonth.split('-').map(Number);
   const daysInMonth = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
@@ -35,11 +23,15 @@ export default function CalendarHome({
           const payerName = newEx.payer === 'husband' ? nicknames.husband : nicknames.wife;
           const typeText = newEx.is_income ? '💰 수입' : '💸 지출';
           const msg = `🔔 [실시간 알림] ${payerName}님이 방금 ${newEx.amount?.toLocaleString()}원(${newEx.content || typeText})을 등록했습니다!`;
+          
           setToastMessage(msg);
           setTimeout(() => { setToastMessage(null); }, 4000);
+          
+          // ★ 논리 수정: 팝업을 띄움과 동시에 백그라운드에서 데이터를 몰래 최신화! (화면 즉시 반영)
+          if (onRefresh) onRefresh();
       }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [nicknames]);
+  }, [nicknames, onRefresh]);
 
   const totalExpense = useMemo(() => expenses.filter(e => !e.is_income).reduce((acc, cur) => acc + Number(cur.amount || 0), 0), [expenses]);
   const totalIncome = useMemo(() => expenses.filter(e => e.is_income).reduce((acc, cur) => acc + Number(cur.amount || 0), 0), [expenses]);
@@ -168,7 +160,6 @@ export default function CalendarHome({
           <div className="space-y-2">
             {selectedDayExpenses.length > 0 ? (
               selectedDayExpenses.map((item) => {
-                // ★ 과거 데이터에 안전한 카테고리 매핑 로직 (목록에 없으면 '기타')
                 const displayCategory = item.is_income
                   ? (INCOME_CATEGORIES.includes(item.category) ? item.category : '기타 수입')
                   : (EXPENSE_CATEGORIES.includes(item.category) ? item.category : '기타');
