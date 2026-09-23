@@ -1,44 +1,40 @@
-export function exportExpensesToCsv(expenses, yearMonth) {
-  if (!expenses || expenses.length === 0) {
-    alert('해당 월에 내보낼 지출 데이터가 없습니다.');
-    return;
-  }
+import { normalizeCategory } from '../constants/categories';
+import { findCard } from '../lib/settlement';
+import { toNumber } from '../lib/format';
 
-  const headers = ['일자', '결제자', '결제수단', '카테고리', '사용처/내역', '결제금액(원)', '공동생활비여부', '정산완료여부', '메모'];
+const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-  const rows = expenses.map((item) => {
-    const payerKr = item.payer === 'husband' ? '남편' : '아내';
-    const isJointKr = item.is_joint_expense ? '공동' : '개인';
-    const isSettledKr = item.is_settled ? '완료' : '미완료';
-    
-    const safeContent = `"${(item.content || '').replace(/"/g, '""')}"`;
-    const safeMemo = `"${(item.memo || '').replace(/"/g, '""')}"`;
+// 엑셀에서 바로 합계를 낼 수 있도록 수입/지출 구분 열 추가, 지출은 음수로 기록
+export function exportExpensesToCsv({ expenses, yearMonth, cardMap, nicknames }) {
+  if (!expenses || expenses.length === 0) return { ok: false, error: '내보낼 내역이 없어요.' };
 
-    return [
-      item.expense_date,
-      payerKr,
-      `"${item.card_name || '일반결제'}"`,
-      `"${item.category}"`,
-      safeContent,
-      item.amount,
-      isJointKr,
-      isSettledKr,
-      safeMemo,
-    ].join(',');
-  });
+  const headers = ['일자', '구분', '결제자', '결제수단', '카테고리', '내역', '금액(원)', '공용/개인', '정산'];
+  const rows = [...expenses]
+    .sort((a, b) => a.expense_date.localeCompare(b.expense_date))
+    .map((item) => {
+      const card = findCard(cardMap, item.card_id);
+      const amount = toNumber(item.amount);
+      return [
+        item.expense_date,
+        item.is_income ? '수입' : '지출',
+        q(item.payer === 'husband' ? nicknames.husband : nicknames.wife),
+        q(item.is_income ? '' : card ? card.card_name : '현금/기타'),
+        q(normalizeCategory(item.category, item.is_income)),
+        q(item.content),
+        item.is_income ? amount : -amount,
+        item.is_income ? '' : item.is_joint_expense ? '공용' : '개인',
+        item.is_income || !item.is_joint_expense ? '' : item.is_settled ? '완료' : '미정산',
+      ].join(',');
+    });
 
-  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
+  const csv = `\uFEFF${[headers.join(','), ...rows].join('\r\n')}`;
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
   const link = document.createElement('a');
-  
-  link.setAttribute('href', url);
-  link.setAttribute('download', `부부로그_가계부내역_${yearMonth}.csv`);
+  link.href = url;
+  link.download = `부부로그_${yearMonth}.csv`;
   document.body.appendChild(link);
-  
   link.click();
-  
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { ok: true, count: rows.length };
 }

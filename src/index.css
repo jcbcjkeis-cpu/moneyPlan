@@ -3,34 +3,32 @@
 @tailwind utilities;
 
 @layer base {
-  /* 1. 모바일 오버스크롤 고무줄 바운스 현상 원천 차단 */
   html, body {
-    @apply bg-slate-900 text-slate-800 antialiased selection:bg-blue-500 selection:text-white;
+    @apply bg-slate-900 text-slate-800 antialiased;
     overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
   }
 
-  /* 2. iOS 및 안드로이드 부드러운 터치 스크롤 물성 적용 */
-  * {
-    -webkit-overflow-scrolling: touch;
+  :focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
   }
 
-  /* 3. 스크롤바 숨김 처리 (깔끔한 UI 유지) */
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
 @layer utilities {
-  .glass-card {
-    @apply bg-white/80 backdrop-blur-md border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)];
-  }
-  .glass-header {
-    @apply bg-slate-900/90 backdrop-blur-lg border-b border-slate-800 shadow-sm;
-  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* 아이폰 노치/홈 바 영역 */
+  .pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 }

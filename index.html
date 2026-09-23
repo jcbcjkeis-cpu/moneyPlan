@@ -2,34 +2,16 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>부부로그 - 부부 전용 커스텀 가계부</title>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="부부로그" />
     <meta name="theme-color" content="#1e293b" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <!-- Tailwind CSS CDN 추가 -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            husband: '#3B82F6',
-            wife: '#F43F5E',
-            joint: '#9333EA',
-          }
-        }
-      }
-    }
-  </script>
   </head>
-  <body class="bg-slate-100 text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
-    <div id="root" class="mx-auto max-w-[430px] min-h-screen bg-slate-50 shadow-xl relative overflow-x-hidden pb-20"></div>
+  <body>
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -1,104 +1,66 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { monthRange, shiftYearMonth } from '../lib/format';
 
-export function useExpenses(yearMonth) {
+// 선택한 달 + 전달 내역 (통계 비교용)
+export function useExpenses(yearMonth, version) {
   const [expenses, setExpenses] = useState([]);
   const [prevMonthExpenses, setPrevMonthExpenses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  const getPrevYearMonth = (ym) => {
-    const [y, m] = ym.split('-').map(Number);
-    const date = new Date(y, m - 2, 1);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-  };
-
-  const getMonthRange = (ym) => {
-    const [y, m] = ym.split('-').map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    return { start: `${ym}-01`, end: `${ym}-${String(lastDay).padStart(2, '0')}` };
-  };
+  const [loadError, setLoadError] = useState(null);
+  const [loadedMonth, setLoadedMonth] = useState(null);
+  const requestRef = useRef(0);
 
   const fetchExpenses = useCallback(async () => {
+    const requestId = ++requestRef.current; // 달을 빠르게 넘길 때 늦게 온 응답이 덮어쓰지 않도록
     setIsLoading(true);
-    const prevYm = getPrevYearMonth(yearMonth);
+    const cur = monthRange(yearMonth);
+    const prev = monthRange(shiftYearMonth(yearMonth, -1));
 
-    try {
-      const { start: startDate, end: endDate } = getMonthRange(yearMonth);
-      const { start: prevStartDate, end: prevEndDate } = getMonthRange(prevYm);
-
-      const { data: currData, error: currError } = await supabase
-        .from('expenses')
-        .select('*')
-        .gte('expense_date', startDate)
-        .lte('expense_date', endDate)
+    const [currRes, prevRes] = await Promise.all([
+      supabase.from('expenses').select('*')
+        .gte('expense_date', cur.start).lte('expense_date', cur.end)
         .order('expense_date', { ascending: false })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }),
+      supabase.from('expenses').select('*')
+        .gte('expense_date', prev.start).lte('expense_date', prev.end),
+    ]);
 
-      if (!currError && currData) setExpenses(currData);
-
-      const { data: prevData, error: prevError } = await supabase
-        .from('expenses')
-        .select('*')
-        .gte('expense_date', prevStartDate)
-        .lte('expense_date', prevEndDate)
-        .order('expense_date', { ascending: false });
-
-      if (!prevError && prevData) setPrevMonthExpenses(prevData);
-
-    } catch (err) {
-      console.error('지출 로딩 에러:', err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    if (requestId !== requestRef.current) return;
+    if (currRes.error) setLoadError(currRes.error.message);
+    else { setExpenses(currRes.data || []); setLoadError(null); setLoadedMonth(yearMonth); }
+    if (!prevRes.error) setPrevMonthExpenses(prevRes.data || []);
+    setIsLoading(false);
   }, [yearMonth]);
 
-  useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
+  useEffect(() => { fetchExpenses(); }, [fetchExpenses, version]);
 
-  const addExpense = async (newRecord) => {
-    const { data, error } = await supabase.from('expenses').insert([newRecord]).select();
-    if (!error && data) {
-      // 추가된 내역이 현재 달에 속할 때만 화면에 반영
-      if (data[0].expense_date.startsWith(yearMonth)) {
-        setExpenses((prev) => [data[0], ...prev]);
-      }
-    }
-  };
+  return { expenses, prevMonthExpenses, isLoading, loadError, loadedMonth, refreshExpenses: fetchExpenses };
+}
 
-  const updateExpense = async (id, updatedRecord) => {
-    const { data, error } = await supabase.from('expenses').update(updatedRecord).eq('id', id).select();
-    if (!error && data) {
-      const updatedItem = data[0];
-      // ★ 논리 방어: 수정한 날짜가 현재 달력(yearMonth)을 벗어났다면 화면 배열에서 삭제!
-      if (!updatedItem.expense_date.startsWith(yearMonth)) {
-        setExpenses((prev) => prev.filter(item => item.id !== id));
-      } else {
-        setExpenses((prev) => prev.map(item => item.id === id ? updatedItem : item));
-      }
-    }
-  };
+// 추가/수정/삭제. 성공하면 onChanged()로 모든 화면 데이터를 다시 불러옴
+export function useExpenseMutations({ onChanged, myInsertIds }) {
+  const addExpense = useCallback(async (record) => {
+    const { data, error } = await supabase.from('expenses').insert([record]).select();
+    if (error) return { ok: false, error: error.message };
+    if (data?.[0]) myInsertIds.current.add(String(data[0].id));
+    onChanged();
+    return { ok: true, data: data?.[0] };
+  }, [onChanged, myInsertIds]);
 
-  const deleteExpense = async (id, isSettled) => {
-    if (isSettled && !window.confirm('⚠️ 이미 정산이 완료된 내역입니다.\n삭제하면 과거 차액에 오차가 발생할 수 있습니다.\n진행하시겠습니까?')) return;
-    if (!isSettled && !window.confirm('이 내역을 삭제하시겠습니까?')) return;
+  const updateExpense = useCallback(async (id, record) => {
+    const { error } = await supabase.from('expenses').update(record).eq('id', id);
+    if (error) return { ok: false, error: error.message };
+    onChanged();
+    return { ok: true };
+  }, [onChanged]);
 
+  const deleteExpense = useCallback(async (id) => {
     const { error } = await supabase.from('expenses').delete().eq('id', id);
-    if (!error) setExpenses((prev) => prev.filter((item) => item.id !== id));
-  };
+    if (error) return { ok: false, error: error.message };
+    onChanged();
+    return { ok: true };
+  }, [onChanged]);
 
-  const settleMonthExpenses = async () => {
-    const { start: startDate, end: endDate } = getMonthRange(yearMonth);
-    const { error } = await supabase
-      .from('expenses')
-      .update({ is_settled: true })
-      .gte('expense_date', startDate)
-      .lte('expense_date', endDate)
-      .eq('is_joint_expense', true)
-      .eq('is_settled', false);
-
-    if (!error) {
-      setExpenses((prev) => prev.map((item) => (item.is_joint_expense ? { ...item, is_settled: true } : item)));
-    } else throw error;
-  };
-
-  return { expenses, prevMonthExpenses, isLoading, addExpense, updateExpense, deleteExpense, settleMonthExpenses, refreshExpenses: fetchExpenses };
+  return { addExpense, updateExpense, deleteExpense };
 }
