@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CalendarHome from './components/calendar/CalendarHome';
+import DaySheet from './components/calendar/DaySheet';
 import BottomNav from './components/common/BottomNav';
 import PwaInstallManager from './components/common/PwaInstallManager';
 import { useToast } from './components/common/Toast';
@@ -15,26 +16,35 @@ import { useHistory } from './hooks/useHistory';
 import { useFavorites } from './hooks/useFavorites';
 import { useSettlements } from './hooks/useSettlements';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
+import { useTheme } from './hooks/useTheme';
 import { buildCardMap, settlementOwner } from './lib/settlement';
 import { currentYearMonth, formatNumber, shiftYearMonth, toNumber } from './lib/format';
+import { haptic } from './lib/haptic';
 import { exportExpensesToCsv } from './utils/exportToCsv';
 
 const readLocal = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
 const writeLocal = (key, v) => { try { localStorage.setItem(key, v); } catch { /* 무시 */ } };
+const UNDO_MS = 4500;
 
 export default function App() {
   const toast = useToast();
+  const { theme, setTheme } = useTheme();
   const [currentTab, setCurrentTab] = useState('calendar');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [initialSms, setInitialSms] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDayOpen, setIsDayOpen] = useState(false);
   const [search, setSearch] = useState({ open: false, category: '' });
   const [viewMode, setViewMode] = useState(() => readLocal('buboo_view_mode') || 'calendar');
-  const [role, setRole] = useState(() => readLocal('my_role')); // 처음이면 null → 선택 창
+  const [role, setRole] = useState(() => readLocal('my_role'));
   const [yearMonth, setYearMonth] = useState(currentYearMonth);
   const [selectedDate, setSelectedDate] = useState(() => new Date().getDate());
   const [version, setVersion] = useState(0);
+  const [pendingDeletes, setPendingDeletes] = useState(() => new Set());
   const myInsertIds = useRef(new Set());
+  const deleteTimers = useRef(new Map());
+  const focusProxy = useRef(null);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -42,17 +52,35 @@ export default function App() {
   const { allCards, cards, budgetLimit, nicknames } = settings;
   const cardMap = useMemo(() => buildCardMap(allCards), [allCards]);
 
-  const { expenses, prevMonthExpenses, isLoading, loadError, loadedMonth } = useExpenses(yearMonth, version);
+  const { expenses: rawExpenses, prevMonthExpenses, isLoading, loadError, loadedMonth } = useExpenses(yearMonth, version);
   const { addExpense, updateExpense, deleteExpense } = useExpenseMutations({ onChanged: bump, myInsertIds });
   const { merchants } = useHistory(version);
   const favs = useFavorites();
   const settlements = useSettlements(version);
 
+  // 삭제 대기 중(되돌리기 가능)인 내역은 화면에서 먼저 숨김
+  const hide = useCallback((list) => (pendingDeletes.size ? list.filter((i) => !pendingDeletes.has(String(i.id))) : list), [pendingDeletes]);
+  const expenses = useMemo(() => hide(rawExpenses), [hide, rawExpenses]);
+  const unsettled = useMemo(() => hide(settlements.unsettled), [hide, settlements.unsettled]);
+  const isStale = loadedMonth !== yearMonth;
+
   useRealtimeSync({ onChange: bump, myInsertIds, nicknames, toast });
 
   useEffect(() => { if (loadError) toast(`내역을 불러오지 못했어요: ${loadError}`, 'error'); }, [loadError, toast]);
 
-  // 예산 80% / 100% 알림 (이번 달, 기기별로 단계마다 한 번)
+  // 단축어/바로가기: ?sms=문자내용 또는 ?add=1 로 열면 입력 화면을 바로 띄움
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sms = params.get('sms');
+    if (sms || params.get('add')) {
+      if (sms) setInitialSms(sms);
+      setEditTarget(null);
+      setIsModalOpen(true);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
+
+  // 예산 80% / 100% 알림 (이번 달, 기기별 단계마다 한 번)
   useEffect(() => {
     const ym = currentYearMonth();
     if (isLoading || loadedMonth !== ym || yearMonth !== ym || !budgetLimit) return;
@@ -63,15 +91,52 @@ export default function App() {
     const shown = Number(readLocal(key) || 0);
     if (level > shown) {
       toast(
-        level === 100
-          ? `🚨 이번 달 예산을 ${formatNumber(total - budgetLimit)}원 넘었어요.`
-          : `⚠️ 이번 달 예산의 ${Math.round(rate)}%를 썼어요. ${formatNumber(budgetLimit - total)}원 남았어요.`,
+        level === 100 ? `이번 달 예산을 ${formatNumber(total - budgetLimit)}원 넘었어요.` : `이번 달 예산의 ${Math.round(rate)}%를 썼어요. ${formatNumber(budgetLimit - total)}원 남았어요.`,
         'warning',
         { duration: 5000 },
       );
     }
-    if (level !== shown) writeLocal(key, String(level)); // 예산을 올리거나 내역을 지우면 다시 알릴 수 있도록
+    if (level !== shown) writeLocal(key, String(level));
   }, [expenses, budgetLimit, yearMonth, loadedMonth, isLoading, toast]);
+
+  // 삭제: 바로 지우지 않고 4.5초 동안 되돌리기 가능
+  const commitDelete = useCallback(async (item) => {
+    const key = String(item.id);
+    deleteTimers.current.delete(key);
+    const res = await deleteExpense(item.id);
+    if (!res.ok) toast(`삭제하지 못했어요: ${res.error}`, 'error');
+    setTimeout(() => setPendingDeletes((prev) => { const n = new Set(prev); n.delete(key); return n; }), res.ok ? 1500 : 0);
+  }, [deleteExpense, toast]);
+
+  const handleDelete = useCallback((item) => {
+    if (item.is_settled && !window.confirm(`이미 정산이 끝난 내역이에요.\n'${item.content}'을(를) 삭제하면 지난 정산 금액과 달라져요. 삭제할까요?`)) return;
+    const key = String(item.id);
+    haptic();
+    setPendingDeletes((prev) => new Set(prev).add(key));
+    const timer = setTimeout(() => commitDelete(item), UNDO_MS);
+    deleteTimers.current.set(key, { timer, item });
+    toast(`'${item.content}' 삭제했어요.`, 'info', {
+      duration: UNDO_MS,
+      action: {
+        label: '되돌리기',
+        onClick: () => {
+          clearTimeout(timer);
+          deleteTimers.current.delete(key);
+          setPendingDeletes((prev) => { const n = new Set(prev); n.delete(key); return n; });
+        },
+      },
+    });
+  }, [commitDelete, toast]);
+
+  // 앱을 내리거나 닫으면 대기 중인 삭제를 바로 처리
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState !== 'hidden') return;
+      deleteTimers.current.forEach(({ timer, item }) => { clearTimeout(timer); commitDelete(item); });
+    };
+    document.addEventListener('visibilitychange', flush);
+    return () => document.removeEventListener('visibilitychange', flush);
+  }, [commitDelete]);
 
   const handleMonthChange = (offset) => {
     const next = shiftYearMonth(yearMonth, offset);
@@ -80,66 +145,61 @@ export default function App() {
   };
 
   const defaultDate = useMemo(() => {
-    const today = new Date();
     if (currentTab !== 'calendar' && yearMonth === currentYearMonth()) {
-      return `${yearMonth}-${String(today.getDate()).padStart(2, '0')}`;
+      return `${yearMonth}-${String(new Date().getDate()).padStart(2, '0')}`;
     }
     const [y, m] = yearMonth.split('-').map(Number);
-    const day = Math.min(selectedDate, new Date(y, m, 0).getDate());
-    return `${yearMonth}-${String(day).padStart(2, '0')}`;
+    return `${yearMonth}-${String(Math.min(selectedDate, new Date(y, m, 0).getDate())).padStart(2, '0')}`;
   }, [currentTab, yearMonth, selectedDate]);
 
   const openExpenseModal = useCallback((item = null) => {
-    setEditTarget(item && item.id ? item : null);
+    const isNew = !(item && item.id);
+    // 아이폰은 코드로 입력칸에 포커스를 줘도 키보드가 안 뜸 → 누른 순간 임시 입력칸에 포커스를 줘서 키보드를 먼저 띄움
+    if (isNew) focusProxy.current?.focus({ preventScroll: true });
+    setEditTarget(isNew ? null : item);
     setIsModalOpen(true);
   }, []);
-
-  const handleDelete = async (item) => {
-    const msg = item.is_settled
-      ? `⚠️ 이미 정산이 끝난 내역이에요.\n'${item.content}'을(를) 삭제하면 지난 정산 금액과 달라져요. 삭제할까요?`
-      : `'${item.content}' ${formatNumber(item.amount)}원을 삭제할까요?`;
-    if (!window.confirm(msg)) return;
-    const res = await deleteExpense(item.id);
-    toast(res.ok ? '삭제했어요.' : `삭제하지 못했어요: ${res.error}`, res.ok ? 'success' : 'error');
-  };
 
   const handleExport = () => {
     const res = exportExpensesToCsv({ expenses, yearMonth, cardMap, nicknames });
     toast(res.ok ? `${res.count}건을 CSV로 내보냈어요.` : res.error, res.ok ? 'success' : 'warning');
   };
 
-  const handleRoleChange = (next) => {
-    setRole(next);
-    writeLocal('my_role', next);
-  };
+  const handleRoleChange = (next) => { setRole(next); writeLocal('my_role', next); };
 
-  const hasUnsettled = useMemo(
-    () => settlements.unsettled.some((i) => settlementOwner(i, cardMap)),
-    [settlements.unsettled, cardMap],
-  );
+  const hasUnsettled = useMemo(() => unsettled.some((i) => settlementOwner(i, cardMap)), [unsettled, cardMap]);
+  const selectedYmd = `${yearMonth}-${String(selectedDate).padStart(2, '0')}`;
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col relative max-w-[430px] mx-auto shadow-2xl overflow-hidden">
-      <PwaInstallManager />
-      <main className="flex-1 bg-slate-50 flex flex-col overflow-x-hidden relative">
+    <div className="min-h-screen bg-app flex flex-col relative max-w-[430px] mx-auto overflow-hidden">
+      <input
+        ref={focusProxy}
+        aria-hidden="true"
+        tabIndex={-1}
+        inputMode="numeric"
+        className="fixed top-0 left-0 w-px h-px opacity-0 pointer-events-none text-base"
+        readOnly
+      />
+      <main className="flex-1 flex flex-col overflow-x-hidden relative">
         {currentTab === 'calendar' && (
           <CalendarHome
             expenses={expenses}
+            isStale={isStale}
             budgetLimit={budgetLimit}
             nicknames={nicknames}
             bgImageUrl={settings.bgImageUrl}
             cardMap={cardMap}
             selectedDate={selectedDate}
-            onSelectDate={setSelectedDate}
+            onSelectDate={(day) => { setSelectedDate(day); setIsDayOpen(true); }}
             yearMonth={yearMonth}
             onPrevMonth={() => handleMonthChange(-1)}
             onNextMonth={() => handleMonthChange(1)}
-            onOpenModal={() => openExpenseModal(null)}
             onEditExpense={openExpenseModal}
             onDeleteExpense={handleDelete}
             onOpenSearch={() => setSearch({ open: true, category: '' })}
             onExport={handleExport}
             viewMode={viewMode}
+            installBanner={<PwaInstallManager />}
             onViewModeChange={(m) => { setViewMode(m); writeLocal('buboo_view_mode', m); }}
           />
         )}
@@ -147,6 +207,7 @@ export default function App() {
           <StatisticsTab
             expenses={expenses}
             prevMonthExpenses={prevMonthExpenses}
+            isStale={isStale}
             budgetLimit={budgetLimit}
             nicknames={nicknames}
             yearMonth={yearMonth}
@@ -162,12 +223,13 @@ export default function App() {
             cardMap={cardMap}
             nicknames={nicknames}
             yearMonth={yearMonth}
-            unsettled={settlements.unsettled}
+            unsettled={unsettled}
             history={settlements.history}
             historyAvailable={settlements.historyAvailable}
             onSettle={settlements.settle}
             onUndoSettlement={settlements.undoSettlement}
             onChanged={bump}
+            onEditExpense={openExpenseModal}
           />
         )}
       </main>
@@ -180,6 +242,18 @@ export default function App() {
         settlementBadge={hasUnsettled}
       />
 
+      <DaySheet
+        isOpen={isDayOpen}
+        onClose={() => setIsDayOpen(false)}
+        ymd={selectedYmd}
+        expenses={expenses}
+        nicknames={nicknames}
+        cardMap={cardMap}
+        onEdit={openExpenseModal}
+        onDelete={handleDelete}
+        onAdd={() => { setIsDayOpen(false); openExpenseModal(null); }}
+      />
+
       <SearchSheet
         isOpen={search.open}
         initialCategory={search.category}
@@ -189,6 +263,8 @@ export default function App() {
         cardMap={cardMap}
         nicknames={nicknames}
         onEdit={openExpenseModal}
+        onDelete={handleDelete}
+        hiddenIds={pendingDeletes}
         version={version}
       />
 
@@ -197,6 +273,7 @@ export default function App() {
         onClose={() => setIsModalOpen(false)}
         onSave={addExpense}
         onUpdate={updateExpense}
+        onDelete={handleDelete}
         editTarget={editTarget}
         currentUserRole={role || 'husband'}
         cards={cards}
@@ -207,6 +284,8 @@ export default function App() {
         favorites={favs.favorites}
         favoritesAvailable={favs.isAvailable}
         onAddFavorite={favs.addFavorite}
+        initialSms={initialSms}
+        onInitialSmsUsed={() => setInitialSms(null)}
       />
 
       <SettingsModal
@@ -218,6 +297,8 @@ export default function App() {
         bgImageUrl={settings.bgImageUrl}
         currentUserRole={role || 'husband'}
         onRoleChange={handleRoleChange}
+        theme={theme}
+        onThemeChange={setTheme}
         onAddCard={settings.addCard}
         onHideCard={settings.hideCard}
         onUpdateBudget={settings.updateBudget}

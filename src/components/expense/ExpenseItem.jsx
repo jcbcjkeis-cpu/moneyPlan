@@ -2,48 +2,41 @@ import React from 'react';
 import { normalizeCategory } from '../../constants/categories';
 import { formatNumber } from '../../lib/format';
 import { findCard } from '../../lib/settlement';
+import SwipeRow from '../common/SwipeRow';
 
-export default function ExpenseItem({ item, nicknames, cardMap, onEdit, onDelete }) {
+// 내역 한 줄. 누르면 수정, 왼쪽으로 밀면 삭제
+export default function ExpenseItem({ item, nicknames, cardMap, onEdit, onDelete, flat = false }) {
   const isHusband = item.payer === 'husband';
   const card = findCard(cardMap, item.card_id);
   const meta = [normalizeCategory(item.category, item.is_income)];
   if (card) meta.push(card.card_name);
 
-  return (
-    <div className="bg-white/85 backdrop-blur-md pl-3 pr-2 py-3 rounded-2xl border border-white/80 shadow-2xs flex items-center justify-between gap-2">
-      <button
-        type="button"
-        onClick={() => onEdit?.(item)}
-        className="flex items-center gap-3 overflow-hidden flex-1 text-left"
-        aria-label={`${item.content} 수정`}
+  const row = (
+    <button
+      type="button"
+      onClick={() => onEdit?.(item)}
+      className={`w-full min-h-[64px] px-3.5 py-2.5 flex items-center gap-3 text-left ${flat ? 'bg-card' : 'bg-card border border-line rounded-2xl'}`}
+    >
+      <span
+        className={`w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${isHusband ? 'bg-husband-soft text-husband' : 'bg-wife-soft text-wife'}`}
+        aria-label={`${isHusband ? nicknames.husband : nicknames.wife} 결제`}
       >
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-bold shrink-0 border ${isHusband ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-          {(isHusband ? nicknames.husband : nicknames.wife).slice(0, 2)}
-        </div>
-        <div className="min-w-0">
-          <p className="text-[13px] font-bold text-slate-800 truncate">{item.content}</p>
-          <p className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">
-            {meta.join(' · ')}
-            {!item.is_income && item.is_joint_expense && <span className="ml-1.5 text-purple-600 font-bold">공용</span>}
-            {item.is_settled && <span className="ml-1.5 text-emerald-600 font-bold">정산완료</span>}
-          </p>
-        </div>
-      </button>
-      <div className="flex items-center gap-1 shrink-0">
-        <span className={`text-[13px] font-bold tracking-tight pr-1 ${item.is_income ? 'text-emerald-600' : 'text-slate-800'}`}>
-          {item.is_income ? '+' : '-'}{formatNumber(item.amount)}<span className="text-[11px] font-normal text-slate-500">원</span>
+        {(isHusband ? nicknames.husband : nicknames.wife).slice(0, 2)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-semibold text-ink truncate">{item.content}</span>
+        <span className="block text-[13px] text-muted truncate mt-0.5">
+          {meta.join(' · ')}
+          {!item.is_income && item.is_joint_expense && <span className="ml-1.5 text-joint font-semibold">공용</span>}
+          {item.is_settled && <span className="ml-1.5 text-income font-semibold">정산완료</span>}
         </span>
-        {onDelete && (
-          <button
-            type="button"
-            onClick={() => onDelete(item)}
-            className="w-8 h-8 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500 flex items-center justify-center text-sm active:scale-90"
-            aria-label={`${item.content} 삭제`}
-          >
-            🗑️
-          </button>
-        )}
-      </div>
-    </div>
+      </span>
+      <span className={`num text-[15px] font-bold shrink-0 ${item.is_income ? 'text-income' : 'text-ink'}`}>
+        {item.is_income ? '+' : '-'}{formatNumber(item.amount)}
+      </span>
+    </button>
   );
+
+  if (!onDelete) return row;
+  return <SwipeRow onDelete={() => onDelete(item)}>{row}</SwipeRow>;
 }

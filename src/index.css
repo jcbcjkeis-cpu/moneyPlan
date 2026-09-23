@@ -3,16 +3,63 @@
 @tailwind utilities;
 
 @layer base {
+  /* 라이트 테마 색 (R G B) */
+  :root {
+    --c-app: 243 244 246;
+    --c-card: 255 255 255;
+    --c-fill: 236 238 242;
+    --c-line: 224 227 233;
+    --c-ink: 17 24 39;
+    --c-ink2: 55 65 81;
+    --c-muted: 95 105 120;
+    --c-husband: 37 99 235;
+    --c-husband-soft: 222 234 254;
+    --c-wife: 219 39 84;
+    --c-wife-soft: 253 228 234;
+    --c-joint: 124 58 237;
+    --c-joint-soft: 238 233 254;
+    --c-income: 4 140 98;
+    --c-income-soft: 212 247 230;
+    --c-danger: 214 40 40;
+    --c-danger-soft: 254 228 228;
+    --c-warn: 180 95 6;
+    --c-warn-soft: 254 243 205;
+    color-scheme: light;
+  }
+
+  /* 다크 테마 */
+  .dark {
+    --c-app: 11 13 17;
+    --c-card: 23 26 32;
+    --c-fill: 34 38 46;
+    --c-line: 46 51 61;
+    --c-ink: 241 243 246;
+    --c-ink2: 208 213 221;
+    --c-muted: 152 160 173;
+    --c-husband: 110 168 255;
+    --c-husband-soft: 28 42 72;
+    --c-wife: 255 122 150;
+    --c-wife-soft: 70 26 40;
+    --c-joint: 172 145 255;
+    --c-joint-soft: 45 34 80;
+    --c-income: 60 214 160;
+    --c-income-soft: 14 58 44;
+    --c-danger: 255 120 120;
+    --c-danger-soft: 72 26 26;
+    --c-warn: 250 195 70;
+    --c-warn-soft: 66 48 12;
+    color-scheme: dark;
+  }
+
   html, body {
-    @apply bg-slate-900 text-slate-800 antialiased;
+    @apply bg-app text-ink antialiased font-sans;
     overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
   }
 
   :focus-visible {
-    outline: 2px solid #6366f1;
+    outline: 2px solid rgb(var(--c-husband));
     outline-offset: 2px;
   }
 
@@ -27,8 +74,7 @@
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-  /* 아이폰 노치/홈 바 영역 */
-  .pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
   .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 }

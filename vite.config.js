@@ -12,11 +12,12 @@ export default defineConfig({
         name: '부부로그 - 부부 전용 커스텀 가계부',
         short_name: '부부로그',
         description: '광고 없이 0.1초 만에 로딩되는 우리 부부만의 커스텀 가계부',
-        theme_color: '#1e293b',
-        background_color: '#f8fafc',
+        theme_color: '#f3f4f6',
+        background_color: '#f3f4f6',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
+        shortcuts: [{ name: '지출 입력', short_name: '입력', url: '/?add=1' }],
         icons: [
           {
             src: 'icon-192.png',
