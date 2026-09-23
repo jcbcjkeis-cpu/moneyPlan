@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Copy, Monitor, Moon, Sun } from 'lucide-react';
+import { Monitor, Moon, Sun } from 'lucide-react';
 import Sheet from '../common/Sheet';
+import SiriSetup from './SiriSetup';
 import { useToast } from '../common/Toast';
 import { formatKoreanAmount, formatNumber, onlyDigits } from '../../lib/format';
 
@@ -64,11 +65,6 @@ export default function SettingsModal({
   const segWrap = 'flex bg-fill p-1 rounded-full';
   const seg = (active, activeText = 'text-ink') => `flex-1 h-10 rounded-full text-[14px] font-bold transition ${active ? `bg-card shadow-xs ${activeText}` : 'text-muted'}`;
   const block = 'py-5 border-b border-line last:border-0';
-  const smsShortcutUrl = typeof window !== 'undefined' ? `${window.location.origin}/?sms=` : '';
-
-  const copy = async (text, msg) => {
-    try { await navigator.clipboard.writeText(text); toast(msg, 'success'); } catch { toast('복사하지 못했어요.', 'error'); }
-  };
 
   return (
     <Sheet isOpen={isOpen} onClose={onClose} title="설정" zIndex={55}>
@@ -207,17 +203,9 @@ export default function SettingsModal({
               </div>
             </section>
             <section className={block}>
-              <h3 className={title}>아이폰: 카드 문자 자동 입력</h3>
-              <p className={desc}>단축어 앱 자동화를 설정하면 카드 승인 문자가 올 때 알림을 눌러 바로 입력 화면을 열 수 있어요 (iOS 17 이상).</p>
-              <ol className="text-[14px] text-ink2 space-y-1.5 list-decimal pl-5 mb-3">
-                <li>단축어 앱 → 자동화 → 새로운 자동화 → <strong>메시지</strong></li>
-                <li>메시지 내용에 <strong>승인</strong> 포함, <strong>즉시 실행</strong> 선택</li>
-                <li>동작 추가: <strong>URL 인코딩</strong> (입력: 단축어 입력)</li>
-                <li>동작 추가: <strong>URL 열기</strong> → 아래 주소 뒤에 'URL 인코딩된 텍스트' 붙이기</li>
-              </ol>
-              <button type="button" onClick={() => copy(smsShortcutUrl, '주소를 복사했어요. 단축어에 붙여넣으세요.')} className="w-full h-12 rounded-xl bg-fill text-[14px] font-semibold text-ink flex items-center justify-center gap-1.5 num">
-                <Copy size={16} /> {smsShortcutUrl}
-              </button>
+              <h3 className={title}>Siri로 입력하기 (아이폰)</h3>
+              <p className={desc}>이 휴대폰 사용자({currentUserRole === 'husband' ? nicknames.husband : nicknames.wife}) 기준 값이에요. 상대방 폰에서는 그 폰의 설정 화면에서 복사하세요.</p>
+              <SiriSetup currentUserRole={currentUserRole} nicknames={nicknames} />
             </section>
           </>
         )}
