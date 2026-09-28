@@ -7,29 +7,25 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'],
       manifest: {
+        id: '/',
         name: '부부로그 - 부부 전용 커스텀 가계부',
         short_name: '부부로그',
-        description: '광고 없이 0.1초 만에 로딩되는 우리 부부만의 커스텀 가계부',
-        theme_color: '#f3f4f6',
-        background_color: '#f3f4f6',
+        description: '우리 부부만의 공용 생활비 가계부',
+        lang: 'ko',
+        theme_color: '#111827',
+        background_color: '#111827',
         display: 'standalone',
         orientation: 'portrait',
+        scope: '/',
         start_url: '/',
-        shortcuts: [{ name: '지출 입력', short_name: '입력', url: '/?add=1' }],
+        shortcuts: [{ name: '지출 입력', short_name: '입력', url: '/?add=1', icons: [{ src: 'icon-192.png', sizes: '192x192' }] }],
+        // 아이콘 파일은 public/ 폴더에 있어야 설치가 가능함 (없으면 크롬이 "설치할 수 없습니다" 표시)
         icons: [
-          {
-            src: 'icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

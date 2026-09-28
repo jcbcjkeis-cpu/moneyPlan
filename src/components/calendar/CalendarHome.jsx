@@ -120,7 +120,8 @@ export default function CalendarHome({
                   <span key={w} className={i === 0 ? 'text-wife' : i === 6 ? 'text-husband' : 'text-muted'}>{w}</span>
                 ))}
               </div>
-              <div key={yearMonth} className="grid grid-cols-7 gap-0.5 auto-rows-[60px] animate-fade-in">
+              {/* 칸 높이는 내용에 맞춰 늘어나고(auto-rows-fr로 모든 줄 높이 통일), 점은 글자 아래에 배치 → 겹침 없음 */}
+              <div key={yearMonth} className="grid grid-cols-7 gap-x-0.5 gap-y-1 auto-rows-fr animate-fade-in">
                 {Array.from({ length: firstDayOfWeek }).map((_, idx) => <div key={`e-${idx}`} />)}
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
                   const d = isStale ? null : dailyMap[day];
@@ -133,17 +134,19 @@ export default function CalendarHome({
                       type="button"
                       onClick={() => onSelectDate(day)}
                       aria-label={`${month}월 ${day}일${d?.expense ? `, 지출 ${formatNumber(d.expense)}원` : ''}${d?.income ? `, 수입 ${formatNumber(d.income)}원` : ''}`}
-                      className={`relative flex flex-col items-center pt-1 rounded-xl transition ${isSelected ? 'bg-fill' : 'active:bg-fill'}`}
+                      className={`min-w-0 min-h-[62px] flex flex-col items-center pt-1 pb-1.5 rounded-xl transition ${isSelected ? 'bg-fill' : 'active:bg-fill'}`}
                     >
-                      <span className={`w-7 h-7 flex items-center justify-center rounded-full text-[13px] font-semibold ${isToday ? 'bg-ink text-card' : dow === 0 ? 'text-wife' : dow === 6 ? 'text-husband' : 'text-ink2'}`}>{day}</span>
-                      <span className="flex flex-col items-center leading-[1.15] num">
-                        {d?.expense > 0 && <span className="text-[11px] font-semibold text-ink2">-{formatShort(d.expense)}</span>}
-                        {d?.income > 0 && <span className="text-[11px] font-semibold text-income">+{formatShort(d.income)}</span>}
+                      <span className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-full text-[13px] font-semibold ${isToday ? 'bg-ink text-card' : dow === 0 ? 'text-wife' : dow === 6 ? 'text-husband' : 'text-ink2'}`}>{day}</span>
+                      <span className="w-full flex flex-col items-center leading-[1.2] num mt-0.5">
+                        {d?.expense > 0 && <span className="max-w-full truncate text-[11px] font-semibold text-ink2 tracking-tight">-{formatShort(d.expense)}</span>}
+                        {d?.income > 0 && <span className="max-w-full truncate text-[11px] font-semibold text-income tracking-tight">+{formatShort(d.income)}</span>}
                       </span>
-                      <span className="absolute bottom-1 flex gap-0.5" aria-hidden="true">
-                        {d?.husband && <span className="w-1 h-1 rounded-full bg-husband" />}
-                        {d?.wife && <span className="w-1 h-1 rounded-full bg-wife" />}
-                      </span>
+                      {(d?.husband || d?.wife) && (
+                        <span className="flex gap-1 mt-auto pt-1" aria-hidden="true">
+                          {d.husband && <span className="w-1 h-1 rounded-full bg-husband" />}
+                          {d.wife && <span className="w-1 h-1 rounded-full bg-wife" />}
+                        </span>
+                      )}
                     </button>
                   );
                 })}

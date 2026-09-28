@@ -29,20 +29,21 @@ export function formatKoreanAmount(v) {
   return `${parts.join(' ')}원`;
 }
 
-// 달력 칸용 짧은 표시: 800 → "800", 3000 → "3천", 12000 → "1.2만", 1500000 → "150만"
+// 달력 칸용 짧은 표시 (좁은 칸에 들어가도록 최대 5글자 안팎)
+// 800 → "800", 3000 → "3천", 4500 → "4.5천", 12000 → "1.2만", 133000 → "13만", 1500000 → "150만", 12000000 → "1200만"
 export function formatShort(v) {
   const n = Math.round(toNumber(v));
   if (n < 1000) return n.toLocaleString('ko-KR');
   if (n < 10000) {
     const k = Math.round(n / 100) / 10;
+    if (k >= 10) return '1만';
     return `${Number.isInteger(k) ? k : k.toFixed(1)}천`;
   }
-  const m = n / 10000;
-  if (m < 100) {
-    const r = Math.round(m * 10) / 10;
-    return `${Number.isInteger(r) ? r : r.toFixed(1)}만`;
+  if (n < 100000) {
+    const m = Math.round(n / 1000) / 10;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}만`;
   }
-  return `${Math.round(m).toLocaleString('ko-KR')}만`;
+  return `${Math.round(n / 10000)}만`;
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];

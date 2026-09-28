@@ -1,10 +1,10 @@
-# 부부로그 v4: Siri 음성 입력
+# v6: 앱 설치 문제 해결 (+ v5 달력 겹침 수정 포함)
 
-## 적용 순서
-1. Supabase → SQL Editor에서 `supabase/migration_v3_siri.sql` 실행 (Success 확인)
-2. `moneyPlan_v4` 폴더 안의 내용물 전체를 GitHub에 업로드 → Commit
-3. 배포 후 아이폰에서 앱 → 설정 → 앱 탭 → "Siri로 입력하기" 안내대로 단축어 만들기
+## 꼭 확인
+- **public 폴더**가 GitHub 저장소 맨 위(src 폴더와 같은 위치)에 올라가야 합니다.
+- public 안에 png 4개 + favicon.ico 1개가 있어야 합니다.
 
 ## 바뀐 파일
-- 새 파일: supabase/migration_v3_siri.sql, src/components/modal/SiriSetup.jsx
-- 수정: src/lib/supabase.js, src/components/modal/SettingsModal.jsx
+- 새 폴더: public/ (icon-192.png, icon-512.png, icon-maskable-512.png, apple-touch-icon.png, favicon.ico)
+- 수정: vite.config.js, index.html
+- v5 수정분: src/components/calendar/CalendarHome.jsx, src/lib/format.js, src/index.css
