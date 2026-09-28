@@ -41,7 +41,12 @@ export function useExpenses(yearMonth, version) {
 // 추가/수정/삭제. 성공하면 onChanged()로 모든 화면 데이터를 다시 불러옴
 export function useExpenseMutations({ onChanged, myInsertIds }) {
   const addExpense = useCallback(async (record) => {
-    const { data, error } = await supabase.from('expenses').insert([record]).select();
+    let { data, error } = await supabase.from('expenses').insert([record]).select();
+    // DB 업데이트(migration_v4_push.sql) 전이면 created_by 없이 다시 저장
+    if (error && /created_by/.test(error.message) && 'created_by' in record) {
+      const { created_by: _omit, ...rest } = record;
+      ({ data, error } = await supabase.from('expenses').insert([rest]).select());
+    }
     if (error) return { ok: false, error: error.message };
     if (data?.[0]) myInsertIds.current.add(String(data[0].id));
     onChanged();

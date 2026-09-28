@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import Sheet from '../common/Sheet';
 import SiriSetup from './SiriSetup';
+import NotificationSettings from './NotificationSettings';
 import { useToast } from '../common/Toast';
 import { formatKoreanAmount, formatNumber, onlyDigits } from '../../lib/format';
 
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'us', label: '우리' },
   { id: 'cards', label: '카드' },
   { id: 'budget', label: '예산' },
+  { id: 'push', label: '알림' },
   { id: 'app', label: '앱' },
 ];
 const THEMES = [
@@ -27,6 +29,7 @@ export default function SettingsModal({
   currentUserRole, onRoleChange, theme, onThemeChange,
   onAddCard, onHideCard, onUpdateBudget, onUpdateNicknames, onUploadBackground, onResetBackground,
   favorites = [], favoritesAvailable, onRemoveFavorite,
+  push, onSaveVapidKey, onRefreshSettings, initialTab,
 }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
@@ -41,6 +44,7 @@ export default function SettingsModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    if (initialTab) setTab(initialTab);
     setInputBudget(String(budgetLimit));
     setHName(nicknames.husband);
     setWName(nicknames.wife);
@@ -175,6 +179,10 @@ export default function SettingsModal({
               )}
             </section>
           </>
+        )}
+
+        {tab === 'push' && (
+          <NotificationSettings role={currentUserRole} nicknames={nicknames} push={push} onSaveVapidKey={onSaveVapidKey} onRefreshSettings={onRefreshSettings} />
         )}
 
         {tab === 'app' && (

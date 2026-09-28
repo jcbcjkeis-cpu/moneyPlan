@@ -30,6 +30,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        importScripts: ['push-sw.js'], // 푸시 알림 받기/누르기 처리 (public/push-sw.js)
         // 가계부 데이터(API)는 캐시하지 않음 → 오래된 금액이 최신처럼 보이는 문제 방지
         // 배경 사진 같은 공개 파일만 캐시
         runtimeCaching: [

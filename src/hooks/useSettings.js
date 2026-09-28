@@ -22,6 +22,7 @@ export function useSettings() {
   const [budgetLimit, setBudgetLimit] = useState(() => readCache('buboo_cache_budget', 500000, Number));
   const [nicknames, setNicknames] = useState(() => readCache('buboo_nicknames', { husband: '남편', wife: '아내' }));
   const [bgImageUrl, setBgImageUrl] = useState(() => readCache('buboo_cache_bg', DEFAULT_BG, String));
+  const [push, setPush] = useState(() => readCache('buboo_cache_push', { vapidPublicKey: '', functionUrl: '' }));
 
   const fetchSettings = useCallback(async () => {
     const [{ data: cardData }, { data: appData }] = await Promise.all([
@@ -39,6 +40,8 @@ export function useSettings() {
       const nicks = { husband: appData.husband_nickname || '남편', wife: appData.wife_nickname || '아내' };
       setNicknames((prev) => (prev.husband === nicks.husband && prev.wife === nicks.wife ? prev : nicks));
       writeCache('buboo_nicknames', nicks);
+      const pushCfg = { vapidPublicKey: appData.vapid_public_key || '', functionUrl: appData.push_function_url || '' };
+      setPush(pushCfg); writeCache('buboo_cache_push', pushCfg);
       const bg = appData.bg_image_url?.trim() ? appData.bg_image_url : DEFAULT_BG;
       setBgImageUrl(bg); writeCache('buboo_cache_bg', bg);
     }
@@ -87,6 +90,16 @@ export function useSettings() {
     return { ok: true };
   };
 
+  // 알림 공개 키 저장 (비밀 키는 저장하지 않음)
+  const saveVapidPublicKey = async (publicKey) => {
+    const res = await saveAppSettings({ vapid_public_key: publicKey, vapid_subject: window.location.origin });
+    if (!res.ok) {
+      return /vapid/.test(res.error) ? { ok: false, error: 'migration_v4_push.sql을 먼저 실행해주세요.' } : res;
+    }
+    setPush((prev) => { const next = { ...prev, vapidPublicKey: publicKey }; writeCache('buboo_cache_push', next); return next; });
+    return { ok: true };
+  };
+
   const updateCardsState = (updater) => {
     setAllCards((prev) => {
       const next = updater(prev);
@@ -112,7 +125,7 @@ export function useSettings() {
   };
 
   return {
-    allCards, cards, budgetLimit, nicknames, bgImageUrl,
+    allCards, cards, budgetLimit, nicknames, bgImageUrl, push, saveVapidPublicKey,
     addCard, hideCard, updateBudget, updateNicknames, uploadBackground, resetBackground,
     refreshSettings: fetchSettings,
   };

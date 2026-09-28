@@ -20,6 +20,7 @@ import { useTheme } from './hooks/useTheme';
 import { buildCardMap, settlementOwner } from './lib/settlement';
 import { currentYearMonth, formatNumber, shiftYearMonth, toNumber } from './lib/format';
 import { haptic } from './lib/haptic';
+import { syncPush } from './lib/push';
 import { exportExpensesToCsv } from './utils/exportToCsv';
 
 const readLocal = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -68,17 +69,45 @@ export default function App() {
 
   useEffect(() => { if (loadError) toast(`내역을 불러오지 못했어요: ${loadError}`, 'error'); }, [loadError, toast]);
 
-  // 단축어/바로가기: ?sms=문자내용 또는 ?add=1 로 열면 입력 화면을 바로 띄움
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+  // 링크로 열기
+  //  ?sms=문자 / ?add=1 → 입력 화면, ?day=2026-09-28 → 그날 내역, ?tab=statistics|settlement → 해당 탭
+  const openFromUrl = useCallback((href) => {
+    const params = new URL(href, window.location.origin).searchParams;
     const sms = params.get('sms');
+    const day = params.get('day');
+    const tab = params.get('tab');
     if (sms || params.get('add')) {
       if (sms) setInitialSms(sms);
       setEditTarget(null);
       setIsModalOpen(true);
-      window.history.replaceState(null, '', window.location.pathname);
+    } else if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      setCurrentTab('calendar');
+      setYearMonth(day.slice(0, 7));
+      setSelectedDate(Number(day.slice(8, 10)));
+      setIsDayOpen(true);
+    } else if (tab === 'statistics' || tab === 'settlement') {
+      setCurrentTab(tab);
     }
   }, []);
+
+  useEffect(() => {
+    if (window.location.search) {
+      openFromUrl(window.location.href);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    // 앱이 열려 있을 때 알림을 누르면 서비스워커가 보내는 메시지
+    if (!('serviceWorker' in navigator)) return undefined;
+    const onMessage = (e) => {
+      if (e.data?.type === 'navigate') { openFromUrl(e.data.url); bump(); }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [openFromUrl, bump]);
+
+  // 알림을 켜 둔 휴대폰: 키나 역할이 바뀌었으면 조용히 다시 연결
+  useEffect(() => {
+    syncPush({ vapidPublicKey: settings.push.vapidPublicKey, role }).catch(() => {});
+  }, [settings.push.vapidPublicKey, role]);
 
   // 예산 80% / 100% 알림 (이번 달, 기기별 단계마다 한 번)
   useEffect(() => {
@@ -271,7 +300,7 @@ export default function App() {
       <ExpenseInputModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSave={addExpense}
+        onSave={(record) => addExpense({ ...record, created_by: role || undefined })}
         onUpdate={updateExpense}
         onDelete={handleDelete}
         editTarget={editTarget}
@@ -308,6 +337,9 @@ export default function App() {
         favorites={favs.favorites}
         favoritesAvailable={favs.isAvailable}
         onRemoveFavorite={favs.removeFavorite}
+        push={settings.push}
+        onSaveVapidKey={settings.saveVapidPublicKey}
+        onRefreshSettings={settings.refreshSettings}
       />
 
       {!role && <RoleSelectModal nicknames={nicknames} onSelect={handleRoleChange} />}
