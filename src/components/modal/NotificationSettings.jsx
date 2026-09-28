@@ -6,7 +6,7 @@ import {
   checkServer, currentSubscription, disablePush, enablePush, generateVapidKeys,
   isIOS, loadPrefs, pushAvailability, savePrefs, sendTestPush,
 } from '../../lib/push';
-import functionCode from '../../../supabase/functions/push/index.ts?raw';
+import { PUSH_FUNCTION_CODE as functionCode, PUSH_SQL } from '../../setup/pushServerFiles';
 
 const PREFS = [
   { id: 'partner', label: '배우자가 입력했을 때', desc: '"찬범님이 입력했어요 · 주유 70,000원"' },
@@ -192,7 +192,10 @@ export default function NotificationSettings({ role, nicknames, push, onSaveVapi
             <li className="flex gap-3">
               <span className={stepNum}>1</span>
               <div className="space-y-2 min-w-0 flex-1">
-                <p className={body}><strong>DB 준비</strong>: Supabase <a className={link} href={dash('sql/new')} target="_blank" rel="noreferrer">SQL Editor<ExternalLink size={13} /></a>에서 <code>supabase/migration_v4_push.sql</code> 내용을 붙여넣고 Run.</p>
+                <p className={body}><strong>DB 준비</strong>: 아래 버튼으로 SQL을 복사해서 Supabase <a className={link} href={dash('sql/new')} target="_blank" rel="noreferrer">SQL Editor<ExternalLink size={13} /></a>에 붙여넣고 <strong>Run</strong>. "Success"가 뜨면 돼요.</p>
+                <button type="button" onClick={() => copy('sql', PUSH_SQL)} className={btn}>
+                  {copied === 'sql' ? <Check size={16} className="text-income" /> : <Copy size={16} />} SQL 복사
+                </button>
               </div>
             </li>
 

@@ -1,14 +1,10 @@
-# 부부로그 v7: 푸시 알림
+# 부부로그 v7.1: 빌드 오류 수정
 
-## 적용 순서
-1. `moneyPlan_v7` 폴더 안의 내용물 전체를 GitHub에 업로드 → Commit (Vercel 자동 배포)
-2. 배포 후 앱 → 설정 → **알림** 탭 → "처음 한 번: 서버 설정" 1~5단계 (한 사람만, PC 추천)
-3. 두 사람 모두 각자 휴대폰에서 설정 → 알림 → **알림 받기** 켜기 → 테스트 알림
+Vercel 빌드 오류("Could not resolve ../../../supabase/functions/push/index.ts?raw") 수정.
+서버 함수 코드와 SQL을 src 안에 넣어서, supabase 폴더를 GitHub에 올리지 않아도 빌드됩니다.
 
-아이폰은 반드시 **홈 화면에 추가한 앱**으로 열어서 켜야 합니다 (iOS 16.4 이상).
+## 올릴 파일 (2개만 올려도 됩니다)
+- 새 파일: src/setup/pushServerFiles.js
+- 수정: src/components/modal/NotificationSettings.jsx
 
-## 바뀐 파일
-- 새 파일: supabase/migration_v4_push.sql, supabase/functions/push/index.ts,
-  public/push-sw.js, src/lib/push.js, src/components/modal/NotificationSettings.jsx
-- 수정: src/App.jsx, src/hooks/useSettings.js, src/hooks/useExpenses.js,
-  src/components/modal/SettingsModal.jsx, vite.config.js
+설정 → 알림 → 1단계에 "SQL 복사" 버튼도 생겼습니다.
