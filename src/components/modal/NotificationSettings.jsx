@@ -6,6 +6,7 @@ import {
   checkServer, currentSubscription, disablePush, enablePush, generateVapidKeys,
   isIOS, loadPrefs, pushAvailability, savePrefs, sendTestPush,
 } from '../../lib/push';
+import PushDiagnostics from './PushDiagnostics';
 import { PUSH_FUNCTION_CODE as functionCode, PUSH_SQL } from '../../setup/pushServerFiles';
 
 const PREFS = [
@@ -176,6 +177,8 @@ export default function NotificationSettings({ role, nicknames, push, onSaveVapi
         )}
         <p className="text-[13px] text-muted mt-2 px-1">내가 입력한 건 나에게 오지 않고 배우자 폰에만 가요. 두 사람 모두 각자 폰에서 알림을 켜야 해요.</p>
       </section>
+
+      {serverReady && <PushDiagnostics role={role} nicknames={nicknames} functionUrl={push.functionUrl} />}
 
       {/* 서버 설정 (한 번만) */}
       <section>

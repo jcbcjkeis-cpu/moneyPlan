@@ -132,3 +132,70 @@ export async function checkServer() {
   if (error) return { ok: false, step: 'sql', message: 'migration_v4_push.sql을 먼저 실행해주세요.' };
   return { ok: true, message: '서버 설정이 끝났어요. 이제 위에서 알림을 켜세요.' };
 }
+
+// ---------- 알림 진단 ----------
+const deviceName = (ua = '') => (/iphone|ipad/i.test(ua) ? '아이폰' : /android/i.test(ua) ? (/samsung/i.test(ua) ? '갤럭시' : '안드로이드') : 'PC/기타');
+
+// 알림이 어디서 막히는지 단계별로 확인 (읽기만 함)
+export async function diagnosePush({ role, nicknames, functionUrl }) {
+  const name = (r) => (r === 'husband' ? nicknames.husband : r === 'wife' ? nicknames.wife : r);
+  const partner = role === 'husband' ? 'wife' : 'husband';
+  const steps = [];
+  let verdict = null;
+
+  // 1) 서버
+  const server = await checkServer();
+  steps.push({ ok: server.ok && Boolean(functionUrl || server.ok), label: '알림 서버', detail: server.ok ? '정상' : server.message });
+  if (!server.ok) verdict = { kind: 'server', text: server.message };
+
+  // 2) 등록된 휴대폰
+  const { data: subs, error: subErr } = await supabase.from('push_subscriptions').select('role, endpoint, user_agent, updated_at');
+  const mine = await currentSubscription().catch(() => null);
+  const list = subErr ? [] : (subs || []);
+  const roles = { husband: list.filter((s) => s.role === 'husband'), wife: list.filter((s) => s.role === 'wife') };
+  const thisPhone = mine ? list.find((s) => s.endpoint === mine.endpoint) : null;
+  steps.push({
+    ok: Boolean(thisPhone) && thisPhone.role === role && Notification.permission === 'granted',
+    label: `이 휴대폰 (${name(role)})`,
+    detail: !mine ? '알림이 꺼져 있어요' : !thisPhone ? '알림 목록에 없어요. 알림 받기를 껐다 켜주세요' : thisPhone.role !== role ? `${name(thisPhone.role)}(으)로 잘못 등록돼 있어요` : `등록됨 · ${Notification.permission === 'granted' ? '알림 허용' : '알림 차단됨'}`,
+  });
+  steps.push({
+    ok: roles[partner].length > 0,
+    label: `배우자 휴대폰 (${name(partner)})`,
+    detail: roles[partner].length ? roles[partner].map((s) => deviceName(s.user_agent)).join(', ') + ' 등록됨' : '등록된 휴대폰이 없어요',
+  });
+  if (!verdict && mine && Notification.permission !== 'granted') {
+    verdict = /iphone|ipad/i.test(navigator.userAgent)
+      ? { kind: 'device-ios', text: '이 휴대폰에서 부부로그 알림이 차단돼 있어요. 아이폰 설정 → 알림 → 부부로그 → 알림 허용을 켜주세요.' }
+      : { kind: 'device-android', text: '이 휴대폰에서 부부로그 알림이 차단돼 있어요. 아래 마지막 항목대로 알림을 "허용"으로 바꿔주세요.' };
+  }
+  if (!verdict && mine && thisPhone && thisPhone.role !== role) verdict = { kind: 'role', text: `이 휴대폰이 ${name(thisPhone.role)}(으)로 등록돼 있어요. 알림 받기를 껐다 다시 켜면 고쳐져요.` };
+  if (!verdict && !roles[partner].length) verdict = { kind: 'partner', text: `${name(partner)}님 폰이 알림 목록에 없어요. ${name(partner)}님 폰에서 설정 → 알림 → 알림 받기를 켜야 해요.` };
+  if (!verdict && (!mine || !thisPhone)) verdict = { kind: 'mine', text: '이 휴대폰 알림이 꺼져 있거나 목록에서 빠졌어요. 위의 알림 받기를 다시 켜주세요.' };
+
+  // 3) 최근 내역을 서버가 처리했는지 (push_sent_at)
+  const since = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+  const { data: recent, error: recErr } = await supabase.from('expenses')
+    .select('id, content, created_at, created_by, payer, push_sent_at')
+    .gte('created_at', since).order('created_at', { ascending: false }).limit(8);
+  const rows = recErr ? [] : (recent || []);
+  const handled = rows.filter((r) => r.push_sent_at).length;
+  steps.push({
+    ok: rows.length === 0 || handled > 0,
+    label: '새 내역 → 서버 전달',
+    detail: recErr ? '확인할 수 없어요 (migration_v4_push.sql 필요)' : rows.length === 0 ? '최근 3일 내역이 없어서 확인할 수 없어요' : `최근 ${rows.length}건 중 ${handled}건 전달됨`,
+    rows: rows.map((r) => ({ id: r.id, content: r.content, by: name(r.created_by || r.payer), at: r.created_at, sent: Boolean(r.push_sent_at) })),
+  });
+  if (!verdict && rows.length && handled === 0) {
+    verdict = { kind: 'trigger', text: '새 내역이 알림 서버로 전달되지 않고 있어요. Supabase에서 migration_v4_push.sql을 다시 실행하고, push 함수의 Verify JWT가 꺼져 있는지 확인해주세요.' };
+  }
+
+  // 4) 여기까지 정상이면 휴대폰 쪽 문제
+  if (!verdict) {
+    const ua = navigator.userAgent;
+    verdict = /iphone|ipad/i.test(ua)
+      ? { kind: 'device-ios', text: '서버는 알림을 정상적으로 보내고 있어요. 아이폰 설정 쪽을 확인해주세요.' }
+      : { kind: 'device-android', text: '서버는 알림을 정상적으로 보내고 있어요. 휴대폰이 크롬을 잠재워서 알림이 늦게(앱을 열 때) 오는 경우가 대부분이에요.' };
+  }
+  return { steps, verdict };
+}
