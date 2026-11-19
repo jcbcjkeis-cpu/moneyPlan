@@ -8,19 +8,19 @@ import ExpenseInputModal from './components/modal/ExpenseInputModal';
 import SettingsModal from './components/modal/SettingsModal';
 import RoleSelectModal from './components/modal/RoleSelectModal';
 import SearchSheet from './components/search/SearchSheet';
-import CardSettlementTab from './components/settlement/CardSettlementTab';
 import StatisticsTab from './components/statistics/StatisticsTab';
 import { useExpenses, useExpenseMutations } from './hooks/useExpenses';
 import { useSettings } from './hooks/useSettings';
 import { useHistory } from './hooks/useHistory';
 import { useFavorites } from './hooks/useFavorites';
-import { useSettlements } from './hooks/useSettlements';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
 import { useTheme } from './hooks/useTheme';
-import { buildCardMap, settlementOwner } from './lib/settlement';
+import { buildCardMap } from './lib/cards';
 import { currentYearMonth, formatNumber, shiftYearMonth, toNumber } from './lib/format';
 import { haptic } from './lib/haptic';
 import { syncPush } from './lib/push';
+import { useSpeech } from './hooks/useSpeech';
+import QuickAddSheet from './components/quick/QuickAddSheet';
 import { exportExpensesToCsv } from './utils/exportToCsv';
 
 const readLocal = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -46,6 +46,9 @@ export default function App() {
   const myInsertIds = useRef(new Set());
   const deleteTimers = useRef(new Map());
   const focusProxy = useRef(null);
+  const [quick, setQuick] = useState({ open: false, focus: false });
+  const [quickText, setQuickText] = useState('');
+  const speech = useSpeech();
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -57,12 +60,10 @@ export default function App() {
   const { addExpense, updateExpense, deleteExpense } = useExpenseMutations({ onChanged: bump, myInsertIds });
   const { merchants } = useHistory(version);
   const favs = useFavorites();
-  const settlements = useSettlements(version);
 
   // 삭제 대기 중(되돌리기 가능)인 내역은 화면에서 먼저 숨김
   const hide = useCallback((list) => (pendingDeletes.size ? list.filter((i) => !pendingDeletes.has(String(i.id))) : list), [pendingDeletes]);
   const expenses = useMemo(() => hide(rawExpenses), [hide, rawExpenses]);
-  const unsettled = useMemo(() => hide(settlements.unsettled), [hide, settlements.unsettled]);
   const isStale = loadedMonth !== yearMonth;
 
   useRealtimeSync({ onChange: bump, myInsertIds, nicknames, toast });
@@ -70,7 +71,7 @@ export default function App() {
   useEffect(() => { if (loadError) toast(`내역을 불러오지 못했어요: ${loadError}`, 'error'); }, [loadError, toast]);
 
   // 링크로 열기
-  //  ?sms=문자 / ?add=1 → 입력 화면, ?day=2026-09-28 → 그날 내역, ?tab=statistics|settlement → 해당 탭
+  //  ?sms=문자 / ?add=1 → 입력 화면, ?day=2026-09-28 → 그날 내역, ?tab=statistics → 통계 탭
   const openFromUrl = useCallback((href) => {
     const params = new URL(href, window.location.origin).searchParams;
     const sms = params.get('sms');
@@ -85,7 +86,7 @@ export default function App() {
       setYearMonth(day.slice(0, 7));
       setSelectedDate(Number(day.slice(8, 10)));
       setIsDayOpen(true);
-    } else if (tab === 'statistics' || tab === 'settlement') {
+    } else if (tab === 'statistics') {
       setCurrentTab(tab);
     }
   }, []);
@@ -138,7 +139,6 @@ export default function App() {
   }, [deleteExpense, toast]);
 
   const handleDelete = useCallback((item) => {
-    if (item.is_settled && !window.confirm(`이미 정산이 끝난 내역이에요.\n'${item.content}'을(를) 삭제하면 지난 정산 금액과 달라져요. 삭제할까요?`)) return;
     const key = String(item.id);
     haptic();
     setPendingDeletes((prev) => new Set(prev).add(key));
@@ -184,10 +184,32 @@ export default function App() {
   const openExpenseModal = useCallback((item = null) => {
     const isNew = !(item && item.id);
     // 아이폰은 코드로 입력칸에 포커스를 줘도 키보드가 안 뜸 → 누른 순간 임시 입력칸에 포커스를 줘서 키보드를 먼저 띄움
-    if (isNew) focusProxy.current?.focus({ preventScroll: true });
+    if (isNew && focusProxy.current) { focusProxy.current.inputMode = 'numeric'; focusProxy.current.focus({ preventScroll: true }); }
     setEditTarget(isNew ? null : item);
     setIsModalOpen(true);
   }, []);
+
+  // 빠른 입력 열기 (글자로)
+  const openQuick = useCallback(() => {
+    if (focusProxy.current) { focusProxy.current.inputMode = 'text'; focusProxy.current.focus({ preventScroll: true }); }
+    setQuick({ open: true, focus: true });
+  }, []);
+
+  // 말로 입력: 버튼을 누른 순간 음성 인식을 시작해야 아이폰에서도 마이크가 켜짐
+  const startMic = useCallback(() => {
+    const started = speech.start({
+      onText: (t) => setQuickText((prev) => (prev.trim() ? `${prev.trim()}, ${t}` : t)),
+      onError: (msg) => {
+        toast(msg, 'warning', { duration: 6000 });
+        setQuick((q) => ({ ...q, focus: true }));
+      },
+    });
+    if (!started) {
+      if (focusProxy.current) { focusProxy.current.inputMode = 'text'; focusProxy.current.focus({ preventScroll: true }); }
+      toast('이 화면에서는 음성 인식을 쓸 수 없어요. 키보드의 🎤(받아쓰기) 버튼을 눌러 말해보세요.', 'info', { duration: 6000 });
+    }
+    setQuick({ open: true, focus: !started });
+  }, [speech, toast]);
 
   const handleExport = () => {
     const res = exportExpensesToCsv({ expenses, yearMonth, cardMap, nicknames });
@@ -196,7 +218,6 @@ export default function App() {
 
   const handleRoleChange = (next) => { setRole(next); writeLocal('my_role', next); };
 
-  const hasUnsettled = useMemo(() => unsettled.some((i) => settlementOwner(i, cardMap)), [unsettled, cardMap]);
   const selectedYmd = `${yearMonth}-${String(selectedDate).padStart(2, '0')}`;
 
   return (
@@ -229,6 +250,8 @@ export default function App() {
             onExport={handleExport}
             viewMode={viewMode}
             installBanner={<PwaInstallManager />}
+            onQuickAdd={openQuick}
+            onQuickMic={startMic}
             onViewModeChange={(m) => { setViewMode(m); writeLocal('buboo_view_mode', m); }}
           />
         )}
@@ -243,22 +266,8 @@ export default function App() {
             onPrevMonth={() => handleMonthChange(-1)}
             onNextMonth={() => handleMonthChange(1)}
             onCategoryClick={(category) => setSearch({ open: true, category })}
-          />
-        )}
-        {currentTab === 'settlement' && (
-          <CardSettlementTab
-            expenses={expenses}
             allCards={allCards}
             cardMap={cardMap}
-            nicknames={nicknames}
-            yearMonth={yearMonth}
-            unsettled={unsettled}
-            history={settlements.history}
-            historyAvailable={settlements.historyAvailable}
-            onSettle={settlements.settle}
-            onUndoSettlement={settlements.undoSettlement}
-            onChanged={bump}
-            onEditExpense={openExpenseModal}
           />
         )}
       </main>
@@ -268,7 +277,7 @@ export default function App() {
         onTabChange={setCurrentTab}
         onOpenModal={() => openExpenseModal(null)}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        settlementBadge={hasUnsettled}
+        onOpenSearch={() => setSearch({ open: true, category: '' })}
       />
 
       <DaySheet
@@ -295,6 +304,23 @@ export default function App() {
         onDelete={handleDelete}
         hiddenIds={pendingDeletes}
         version={version}
+      />
+
+      <QuickAddSheet
+        isOpen={quick.open}
+        focusOnOpen={quick.focus}
+        onClose={() => setQuick({ open: false, focus: false })}
+        text={quickText}
+        setText={setQuickText}
+        speech={speech}
+        onMic={startMic}
+        onSave={(record) => addExpense({ ...record, created_by: role || undefined })}
+        onOpenDetail={() => { setQuick({ open: false, focus: false }); openExpenseModal(null); }}
+        merchants={merchants}
+        cards={cards}
+        cardMap={cardMap}
+        role={role || 'husband'}
+        nicknames={nicknames}
       />
 
       <ExpenseInputModal
