@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { prepareBackground } from '../lib/image';
 
 const DEFAULT_BG = 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1000&auto=format&fit=crop';
 
@@ -14,7 +15,7 @@ const writeCache = (key, value) => {
 };
 
 export function useSettings() {
-  // 숨긴 카드까지 포함한 전체 카드 (과거 정산 데이터 보존용)
+  // 숨긴 카드까지 포함한 전체 카드 (숨긴 카드의 지난 내역 표시용)
   const [allCards, setAllCards] = useState(() => readCache('buboo_cache_all_cards', []));
   // 화면에 새 배열이 매번 만들어지지 않도록 메모 (입력창 초기화 버그 원인이었음)
   const cards = useMemo(() => allCards.filter((c) => c.is_active), [allCards]);
@@ -56,10 +57,18 @@ export function useSettings() {
   };
 
   const uploadBackground = async (file) => {
-    if (!file) return { ok: false, error: '사진을 선택해주세요.' };
-    if (file.size > 5 * 1024 * 1024) return { ok: false, error: '5MB 이하의 사진만 올릴 수 있어요.' };
-    const fileName = `custom_bg_${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('backgrounds').upload(fileName, file, { upsert: true });
+    let prepared;
+    try {
+      prepared = await prepareBackground(file); // 화면 크기에 맞게 줄이고 JPEG로 변환
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+    const fileName = `custom_bg_${Date.now()}.jpg`;
+    const { error } = await supabase.storage.from('backgrounds').upload(fileName, prepared.blob, {
+      upsert: true,
+      contentType: 'image/jpeg',
+      cacheControl: '31536000',
+    });
     if (error) return { ok: false, error: `업로드 실패: ${error.message}` };
     const { data } = supabase.storage.from('backgrounds').getPublicUrl(fileName);
     const res = await saveAppSettings({ bg_image_url: data.publicUrl });
@@ -116,7 +125,7 @@ export function useSettings() {
     return { ok: true };
   };
 
-  // 목록에서만 숨김 (과거 정산 내역 보존)
+  // 목록에서만 숨김 (지난 내역 보존)
   const hideCard = async (cardId) => {
     const { error } = await supabase.from('payment_cards').update({ is_active: false }).eq('id', cardId);
     if (error) return { ok: false, error: error.message };

@@ -12,7 +12,6 @@ import { PUSH_FUNCTION_CODE as functionCode, PUSH_SQL } from '../../setup/pushSe
 const PREFS = [
   { id: 'partner', label: '배우자가 입력했을 때', desc: '"찬범님이 입력했어요 · 주유 70,000원"' },
   { id: 'budget', label: '예산 80%, 100% 도달', desc: '이번 달 예산 기준, 단계마다 한 번' },
-  { id: 'settlement', label: '월말 정산 알림', desc: '매달 마지막 날 밤 9시, 보낼 돈이 있을 때만' },
 ];
 
 function Toggle({ on, onChange, label, disabled }) {
@@ -35,7 +34,7 @@ export default function NotificationSettings({ role, nicknames, push, onSaveVapi
   const toast = useToast();
   const avail = pushAvailability();
   const [endpoint, setEndpoint] = useState(null);
-  const [prefs, setPrefs] = useState({ partner: true, budget: true, settlement: true });
+  const [prefs, setPrefs] = useState({ partner: true, budget: true });
   const [busy, setBusy] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [copied, setCopied] = useState('');

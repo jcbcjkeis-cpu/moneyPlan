@@ -1,7 +1,7 @@
 import React from 'react';
 import { normalizeCategory } from '../../constants/categories';
 import { formatNumber } from '../../lib/format';
-import { findCard } from '../../lib/settlement';
+import { findCard } from '../../lib/cards';
 import SwipeRow from '../common/SwipeRow';
 
 // 내역 한 줄. 누르면 수정, 왼쪽으로 밀면 삭제
@@ -28,7 +28,6 @@ export default function ExpenseItem({ item, nicknames, cardMap, onEdit, onDelete
         <span className="block text-[13px] text-muted truncate mt-0.5">
           {meta.join(' · ')}
           {!item.is_income && item.is_joint_expense && <span className="ml-1.5 text-joint font-semibold">공용</span>}
-          {item.is_settled && <span className="ml-1.5 text-income font-semibold">정산완료</span>}
         </span>
       </span>
       <span className={`num text-[15px] font-bold shrink-0 ${item.is_income ? 'text-income' : 'text-ink'}`}>

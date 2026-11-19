@@ -127,7 +127,7 @@ export default function SettingsModal({
             </section>
             <section className={block}>
               <h3 className={title}>사용 중인 결제 수단</h3>
-              <p className={desc}>숨겨도 지난 내역과 정산 기록은 그대로 남아요.</p>
+              <p className={desc}>숨겨도 지난 내역은 그대로 남아요.</p>
               <div className="rounded-2xl border border-line overflow-hidden">
                 {cards.length === 0 && <p className="p-4 text-[14px] text-muted">등록된 카드가 없어요.</p>}
                 {cards.map((card) => (
@@ -202,9 +202,9 @@ export default function SettingsModal({
               <h3 className={title}>홈 배경 사진</h3>
               <p className={desc}>홈 화면 맨 위 예산 영역에만 보여요.</p>
               <div className="w-full h-24 rounded-2xl overflow-hidden mb-2 bg-fill">
-                <img src={bgImageUrl} alt="현재 배경" className="w-full h-full object-cover" />
+                <img src={bgImageUrl} alt="현재 배경" decoding="async" loading="lazy" className="w-full h-full object-cover" />
               </div>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={async (e) => { const f = e.target.files?.[0]; if (f) await run('bg', () => onUploadBackground(f), '배경 사진을 바꿨어요.'); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="hidden" />
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={async (e) => { const f = e.target.files?.[0]; if (f) await run('bg', () => onUploadBackground(f), '배경 사진을 바꿨어요. (화면에 맞게 자동으로 줄였어요)'); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="hidden" />
               <div className="flex gap-2">
                 <button type="button" disabled={busy === 'bg'} onClick={() => fileInputRef.current?.click()} className={`${primary} flex-1`}>{busy === 'bg' ? '올리는 중…' : '사진 바꾸기'}</button>
                 <button type="button" disabled={busy === 'bg'} onClick={() => { if (window.confirm('기본 배경으로 되돌릴까요?')) run('bg', onResetBackground, '기본 배경으로 되돌렸어요.'); }} className="h-12 px-4 rounded-xl bg-fill text-[15px] font-semibold text-ink2">기본으로</button>

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Download, List, Search } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Download, List, Mic, Search, Zap } from 'lucide-react';
 import ExpenseItem from '../expense/ExpenseItem';
 import ExpenseList from '../expense/ExpenseList';
 import { currentYearMonth, formatNumber, formatShort, toNumber, toYmd } from '../../lib/format';
@@ -23,7 +23,7 @@ function budgetMessage({ yearMonth, total, budget, daysInMonth }) {
 export default function CalendarHome({
   expenses = [], isStale, budgetLimit, nicknames, bgImageUrl, cardMap,
   selectedDate, onSelectDate, yearMonth, onPrevMonth, onNextMonth,
-  onEditExpense, onDeleteExpense, onOpenSearch, onExport, viewMode, onViewModeChange, installBanner,
+  onEditExpense, onDeleteExpense, onOpenSearch, onExport, viewMode, onViewModeChange, installBanner, onQuickAdd, onQuickMic,
 }) {
   const [year, month] = yearMonth.split('-').map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -74,7 +74,7 @@ export default function CalendarHome({
     <div className="flex flex-col w-full min-h-screen pb-28 bg-app">
       {/* 배경 사진은 이 영역에만: 글씨 대비를 위해 어두운 그라데이션 */}
       <section className="relative overflow-hidden rounded-b-[32px]">
-        <img src={bgImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <img src={bgImageUrl} alt="" decoding="async" draggable={false} className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/45 to-black/70" />
         <div className="relative pt-safe">
           <header className="flex items-center justify-between px-3 pt-2">
@@ -108,6 +108,28 @@ export default function CalendarHome({
               <span>수입 +{formatNumber(totalIncome)}원</span>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* 빠른 입력: 한 줄로 쓰거나 말하면 바로 저장 */}
+      <section className="px-4 pt-4">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onQuickAdd}
+            className="flex-1 min-w-0 h-[52px] rounded-2xl bg-card border border-line px-4 flex items-center gap-2.5 text-left active:scale-[0.99]"
+          >
+            <Zap size={18} className="text-warn shrink-0" />
+            <span className="text-[15px] text-muted truncate">빠른 입력 · "이마트 5만 2천"</span>
+          </button>
+          <button
+            type="button"
+            onClick={onQuickMic}
+            aria-label="말로 입력"
+            className="w-[52px] h-[52px] rounded-2xl bg-ink text-card flex items-center justify-center shrink-0 active:scale-95"
+          >
+            <Mic size={22} />
+          </button>
         </div>
       </section>
 

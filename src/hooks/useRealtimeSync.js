@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatWon } from '../lib/format';
 
-// 앱 전체에서 한 번만 구독: 배우자의 추가/수정/삭제/정산을 모든 탭에 반영
+// 앱 전체에서 한 번만 구독: 배우자의 추가/수정/삭제를 모든 탭에 반영
 export function useRealtimeSync({ onChange, myInsertIds, nicknames, toast }) {
   const latest = useRef({ onChange, nicknames, toast });
   latest.current = { onChange, nicknames, toast };
@@ -29,7 +29,6 @@ export function useRealtimeSync({ onChange, myInsertIds, nicknames, toast }) {
           show(`${who} · ${row.content || (row.is_income ? '수입' : '지출')} ${sign}${formatWon(row.amount)} 등록`, 'info');
         }, 1200);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'settlements' }, refresh)
       .subscribe();
 
     return () => { clearTimeout(debounce); supabase.removeChannel(channel); };

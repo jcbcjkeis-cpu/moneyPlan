@@ -2,8 +2,11 @@ import React, { useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ChevronRight as Go } from 'lucide-react';
 import { normalizeCategory } from '../../constants/categories';
 import { formatNumber, toNumber } from '../../lib/format';
+import { findCard } from '../../lib/cards';
 
-export default function StatisticsTab({ expenses = [], prevMonthExpenses = [], isStale, budgetLimit, nicknames, yearMonth, onPrevMonth, onNextMonth, onCategoryClick }) {
+const TYPE_LABEL = { CREDIT: '신용카드', DEBIT: '체크카드', ACCOUNT: '계좌', CASH: '카드 미선택' };
+
+export default function StatisticsTab({ expenses = [], prevMonthExpenses = [], isStale, budgetLimit, nicknames, yearMonth, onPrevMonth, onNextMonth, onCategoryClick, allCards = [], cardMap }) {
   const [year, month] = yearMonth.split('-').map(Number);
   const prevMonth = month === 1 ? 12 : month - 1;
 
@@ -46,6 +49,23 @@ export default function StatisticsTab({ expenses = [], prevMonthExpenses = [], i
       .map((c) => ({ ...c, rate: currTotal > 0 ? Math.round((c.amount / currTotal) * 100) : 0 }));
   }, [currExpenses, currTotal]);
 
+  // 결제수단별 사용액 (예전 정산 탭에 있던 기능)
+  const cardSummary = useMemo(() => {
+    const map = new Map();
+    allCards.forEach((c) => map.set(String(c.id), { ...c, total: 0, count: 0 }));
+    const cash = { id: 'cash', card_name: '현금 / 기타', owner: null, card_type: 'CASH', is_active: true, total: 0, count: 0 };
+    currExpenses.forEach((e) => {
+      const c = cardMap ? findCard(cardMap, e.card_id) : null;
+      const row = (c && map.get(String(c.id))) || cash;
+      row.total += toNumber(e.amount);
+      row.count += 1;
+    });
+    const rows = [...map.values()].filter((c) => c.count > 0);
+    if (cash.count > 0) rows.push(cash);
+    return rows.sort((a, b) => b.total - a.total);
+  }, [currExpenses, allCards, cardMap]);
+  const ownerName = (o) => (o === 'husband' ? nicknames.husband : o === 'wife' ? nicknames.wife : o === 'joint' ? '공용' : '');
+
   const card = 'bg-card p-5 rounded-3xl border border-line';
   const navBtn = 'w-11 h-11 rounded-full flex items-center justify-center text-ink active:bg-fill';
 
@@ -75,7 +95,9 @@ export default function StatisticsTab({ expenses = [], prevMonthExpenses = [], i
           <p className={`text-[14px] font-semibold mt-1 ${momDiff > 0 && prevTotal > 0 ? 'text-danger' : 'text-ink2'}`}>
             {prevTotal === 0
               ? `${prevMonth}월 기록이 없어 비교할 수 없어요`
-              : momDiff <= 0
+              : momDiff === 0
+                ? `${prevMonth}월과 똑같이 썼어요`
+                : momDiff < 0
                 ? `${prevMonth}월보다 ${formatNumber(-momDiff)}원 덜 썼어요 (${momRate}%)`
                 : `${prevMonth}월보다 ${formatNumber(momDiff)}원 더 썼어요 (+${momRate}%)`}
           </p>
@@ -136,6 +158,30 @@ export default function StatisticsTab({ expenses = [], prevMonthExpenses = [], i
             <p className="py-10 text-center text-[14px] text-muted">{month}월 지출 내역이 없어요.</p>
           )}
         </div>
+
+        {cardSummary.length > 0 && (
+          <div className="bg-card rounded-3xl border border-line overflow-hidden">
+            <h3 className="text-[15px] font-bold text-ink px-5 pt-5 pb-1">결제수단별 사용액</h3>
+            <p className="text-[13px] text-muted px-5 pb-2">사용한 날짜 기준이에요. 신용카드 청구액과는 다를 수 있어요.</p>
+            {cardSummary.map((c) => (
+              <div key={c.id} className="px-5 py-3 flex items-center justify-between gap-3 border-t border-line">
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold text-ink truncate">
+                    {c.card_name}{!c.is_active && <span className="ml-1.5 text-[12px] text-muted">(숨김)</span>}
+                  </p>
+                  <p className="text-[13px] text-muted">
+                    {c.owner && <span className={c.owner === 'husband' ? 'text-husband' : c.owner === 'wife' ? 'text-wife' : 'text-joint'}>{ownerName(c.owner)} · </span>}
+                    {TYPE_LABEL[c.card_type] || '기타'}
+                  </p>
+                </div>
+                <div className="text-right shrink-0 num">
+                  <p className="text-[15px] font-bold text-ink">{formatNumber(c.total)}원</p>
+                  <p className="text-[13px] text-muted">{c.count}건</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

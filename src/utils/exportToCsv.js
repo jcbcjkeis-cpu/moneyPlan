@@ -1,5 +1,5 @@
 import { normalizeCategory } from '../constants/categories';
-import { findCard } from '../lib/settlement';
+import { findCard } from '../lib/cards';
 import { toNumber } from '../lib/format';
 
 const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -8,7 +8,7 @@ const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 export function exportExpensesToCsv({ expenses, yearMonth, cardMap, nicknames }) {
   if (!expenses || expenses.length === 0) return { ok: false, error: '내보낼 내역이 없어요.' };
 
-  const headers = ['일자', '구분', '결제자', '결제수단', '카테고리', '내역', '금액(원)', '공용/개인', '정산'];
+  const headers = ['일자', '구분', '결제자', '결제수단', '카테고리', '내역', '금액(원)', '공용/개인'];
   const rows = [...expenses]
     .sort((a, b) => a.expense_date.localeCompare(b.expense_date))
     .map((item) => {
@@ -23,7 +23,6 @@ export function exportExpensesToCsv({ expenses, yearMonth, cardMap, nicknames })
         q(item.content),
         item.is_income ? amount : -amount,
         item.is_income ? '' : item.is_joint_expense ? '공용' : '개인',
-        item.is_income || !item.is_joint_expense ? '' : item.is_settled ? '완료' : '미정산',
       ].join(',');
     });
 

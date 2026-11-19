@@ -4,7 +4,7 @@ import Sheet from '../common/Sheet';
 import { useToast } from '../common/Toast';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, normalizeCategory } from '../../constants/categories';
 import { formatDateLabel, formatKoreanAmount, formatNumber, onlyDigits, toNumber } from '../../lib/format';
-import { findCard } from '../../lib/settlement';
+import { findCard } from '../../lib/cards';
 import { findMerchant, searchMerchants } from '../../hooks/useHistory';
 import { matchCardByIssuer, parseCardSms } from '../../lib/smsParser';
 import { haptic } from '../../lib/haptic';
@@ -229,13 +229,6 @@ export default function ExpenseInputModal({
       is_joint_expense: isIncome ? false : isJoint,
     };
 
-    if (editTarget?.is_settled) {
-      const changed = toNumber(editTarget.amount) !== payload.amount
-        || ['payer', 'is_joint_expense', 'is_income'].some((k) => payload[k] !== editTarget[k])
-        || String(payload.card_id ?? '') !== String(editTarget.card_id ?? '');
-      if (changed && !window.confirm('이미 정산이 끝난 내역이에요.\n금액·결제자·카드·공용 여부를 바꾸면 지난 정산 금액과 달라집니다.\n그래도 저장할까요?')) return;
-    }
-
     setIsSaving(true);
     const res = editTarget ? await onUpdate(editTarget.id, payload) : await onSave(payload);
     setIsSaving(false);
@@ -265,10 +258,7 @@ export default function ExpenseInputModal({
   };
 
   const pill = 'relative h-11 px-3.5 rounded-full bg-fill text-[14px] font-semibold text-ink flex items-center gap-1.5 shrink-0';
-  const jointHelp = isIncome ? null
-    : !isJoint ? '개인 지출이라 부부 정산에 들어가지 않아요.'
-      : selectedCard?.owner === 'joint' ? '공용카드로 낸 돈이라 따로 정산할 금액은 없어요.'
-        : `${nameOf(selectedCard ? selectedCard.owner : payer)}님이 낸 공용 생활비로 정산에 들어가요.`;
+  const jointHelp = isIncome ? null : isJoint ? '공용 생활비로 기록돼요. (통계의 공용 생활비에 포함)' : '개인 지출로 기록돼요.';
 
   const footer = editTarget ? (
     <div className="flex gap-2">
@@ -489,11 +479,6 @@ export default function ExpenseInputModal({
           </div>
         </div>
 
-        {editTarget?.is_settled && (
-          <p className="text-[13px] font-semibold text-warn bg-warn-soft rounded-xl px-3 py-2.5">
-            정산이 끝난 내역이에요. 금액이나 결제 정보를 바꾸면 지난 정산과 달라져요.
-          </p>
-        )}
         <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
       </form>
     </Sheet>
