@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import Sheet from '../common/Sheet';
 import SiriSetup from './SiriSetup';
+import { APP_VERSION } from '../../constants/version';
 import NotificationSettings from './NotificationSettings';
+import MerchantManager from './MerchantManager';
 import { useToast } from '../common/Toast';
 import { formatKoreanAmount, formatNumber, onlyDigits } from '../../lib/format';
 
@@ -15,6 +17,7 @@ const TABS = [
   { id: 'us', label: '우리' },
   { id: 'cards', label: '카드' },
   { id: 'budget', label: '예산' },
+  { id: 'merchants', label: '사용처' },
   { id: 'push', label: '알림' },
   { id: 'app', label: '앱' },
 ];
@@ -26,10 +29,10 @@ const THEMES = [
 
 export default function SettingsModal({
   isOpen, onClose, cards = [], budgetLimit, nicknames, bgImageUrl,
-  currentUserRole, onRoleChange, theme, onThemeChange,
+  currentUserRole, onRoleChange, theme, onThemeChange, plusAction, onPlusActionChange,
   onAddCard, onHideCard, onUpdateBudget, onUpdateNicknames, onUploadBackground, onResetBackground,
   favorites = [], favoritesAvailable, onRemoveFavorite,
-  push, onSaveVapidKey, onRefreshSettings, initialTab,
+  push, onSaveVapidKey, onRefreshSettings, initialTab, onDataChanged,
 }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
@@ -75,7 +78,7 @@ export default function SettingsModal({
       <div className="px-5 sticky top-0 bg-card z-10 pb-2">
         <div className={segWrap} role="tablist">
           {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={seg(tab === t.id)}>{t.label}</button>
+            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`${seg(tab === t.id)} !text-[13px] min-w-0`}>{t.label}</button>
           ))}
         </div>
       </div>
@@ -181,12 +184,22 @@ export default function SettingsModal({
           </>
         )}
 
+        {tab === 'merchants' && <MerchantManager onChanged={onDataChanged} />}
+
         {tab === 'push' && (
           <NotificationSettings role={currentUserRole} nicknames={nicknames} push={push} onSaveVapidKey={onSaveVapidKey} onRefreshSettings={onRefreshSettings} />
         )}
 
         {tab === 'app' && (
           <>
+            <section className={block}>
+              <h3 className={title}>아래 + 버튼을 누르면</h3>
+              <p className={desc}>빠른 입력은 "이마트 5만 2천"처럼 한 줄로, 자세히 입력은 항목을 하나씩 골라서 입력해요.</p>
+              <div className={segWrap}>
+                <button type="button" onClick={() => onPlusActionChange('quick')} className={seg(plusAction === 'quick')}>빠른 입력</button>
+                <button type="button" onClick={() => onPlusActionChange('detail')} className={seg(plusAction !== 'quick')}>자세히 입력</button>
+              </div>
+            </section>
             <section className={block}>
               <h3 className={title}>화면 모드</h3>
               <p className={desc}>'기기 설정'을 고르면 휴대폰의 다크 모드를 따라가요.</p>
@@ -217,6 +230,7 @@ export default function SettingsModal({
             </section>
           </>
         )}
+        <p className="text-center text-[12px] text-muted pt-6">부부로그 {APP_VERSION}</p>
       </div>
     </Sheet>
   );

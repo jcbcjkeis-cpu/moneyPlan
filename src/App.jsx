@@ -20,7 +20,9 @@ import { currentYearMonth, formatNumber, shiftYearMonth, toNumber } from './lib/
 import { haptic } from './lib/haptic';
 import { syncPush } from './lib/push';
 import { useSpeech } from './hooks/useSpeech';
+import { scoreTranscript } from './lib/quickParse';
 import QuickAddSheet from './components/quick/QuickAddSheet';
+import SavedListSheet from './components/quick/SavedListSheet';
 import { exportExpensesToCsv } from './utils/exportToCsv';
 
 const readLocal = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -49,6 +51,9 @@ export default function App() {
   const [quick, setQuick] = useState({ open: false, focus: false });
   const [quickText, setQuickText] = useState('');
   const speech = useSpeech();
+  const [speechHelp, setSpeechHelp] = useState('');
+  const [savedIds, setSavedIds] = useState(null); // 빠른 입력으로 방금 저장한 여러 건
+  const [plusAction, setPlusAction] = useState(() => readLocal('buboo_plus_action') || 'detail');
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -88,6 +93,13 @@ export default function App() {
       setIsDayOpen(true);
     } else if (tab === 'statistics') {
       setCurrentTab(tab);
+    } else if (params.get('quick')) {
+      setQuick({ open: true, focus: true, mic: false });
+    } else if (params.get('mic')) {
+      // 바로가기로 열면 화면을 한 번 눌러야 마이크가 켜짐 (브라우저 규칙) → 큰 마이크 버튼을 보여줌
+      setQuick({ open: true, focus: false, mic: true });
+    } else if (params.get('search')) {
+      setSearch({ open: true, category: '' });
     }
   }, []);
 
@@ -198,18 +210,24 @@ export default function App() {
   // 말로 입력: 버튼을 누른 순간 음성 인식을 시작해야 아이폰에서도 마이크가 켜짐
   const startMic = useCallback(() => {
     const started = speech.start({
-      onText: (t) => setQuickText((prev) => (prev.trim() ? `${prev.trim()}, ${t}` : t)),
-      onError: (msg) => {
-        toast(msg, 'warning', { duration: 6000 });
-        setQuick((q) => ({ ...q, focus: true }));
+      // 조각마다 후보 중 가장 말이 되는 것(사용처+금액, 아는 사용처)을 골라 이어 붙임
+      onResult: (segments) => {
+        const picked = segments.map((alts) => alts.reduce((best, t) => (
+          scoreTranscript(t, { merchants, cards, nicknames }) > scoreTranscript(best, { merchants, cards, nicknames }) ? t : best
+        ), alts[0])).join(' ');
+        setQuickText((prev) => (prev.trim() ? `${prev.trim()}, ${picked}` : picked));
       },
+      // 실패하면 빠른 입력 화면에 '키보드 받아쓰기' 안내를 띄움 (아이폰은 버튼을 눌러야 키보드가 열림)
+      onError: (msg) => setSpeechHelp(msg),
     });
     if (!started) {
       if (focusProxy.current) { focusProxy.current.inputMode = 'text'; focusProxy.current.focus({ preventScroll: true }); }
-      toast('이 화면에서는 음성 인식을 쓸 수 없어요. 키보드의 🎤(받아쓰기) 버튼을 눌러 말해보세요.', 'info', { duration: 6000 });
+      setSpeechHelp(speech.supported ? '음성 인식을 시작하지 못했어요. 키보드의 🎤(받아쓰기)로 말해주세요.' : '이 화면에서는 음성 인식을 쓸 수 없어요. 키보드의 🎤(받아쓰기)로 말해주세요.');
+    } else {
+      setSpeechHelp('');
     }
     setQuick({ open: true, focus: !started });
-  }, [speech, toast]);
+  }, [speech, toast, merchants, cards, nicknames]);
 
   const handleExport = () => {
     const res = exportExpensesToCsv({ expenses, yearMonth, cardMap, nicknames });
@@ -265,7 +283,11 @@ export default function App() {
             yearMonth={yearMonth}
             onPrevMonth={() => handleMonthChange(-1)}
             onNextMonth={() => handleMonthChange(1)}
-            onCategoryClick={(category) => setSearch({ open: true, category })}
+            onCategoryClick={(category, range) => setSearch({ open: true, category, range })}
+            onMerchantClick={(query, range) => setSearch({ open: true, category: '', query, range })}
+            onEditExpense={openExpenseModal}
+            version={version}
+            hiddenIds={pendingDeletes}
             allCards={allCards}
             cardMap={cardMap}
           />
@@ -275,7 +297,7 @@ export default function App() {
       <BottomNav
         currentTab={currentTab}
         onTabChange={setCurrentTab}
-        onOpenModal={() => openExpenseModal(null)}
+        onOpenModal={() => (plusAction === 'quick' ? openQuick() : openExpenseModal(null))}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenSearch={() => setSearch({ open: true, category: '' })}
       />
@@ -295,6 +317,8 @@ export default function App() {
       <SearchSheet
         isOpen={search.open}
         initialCategory={search.category}
+        initialQuery={search.query}
+        initialRange={search.range}
         onClose={() => setSearch({ open: false, category: '' })}
         monthExpenses={expenses}
         yearMonth={yearMonth}
@@ -309,12 +333,21 @@ export default function App() {
       <QuickAddSheet
         isOpen={quick.open}
         focusOnOpen={quick.focus}
-        onClose={() => setQuick({ open: false, focus: false })}
+        micPrompt={quick.mic}
+        onClose={() => { setQuick({ open: false, focus: false }); setSpeechHelp(''); }}
         text={quickText}
         setText={setQuickText}
         speech={speech}
+        speechHelp={speechHelp}
+        onDismissSpeechHelp={() => setSpeechHelp('')}
         onMic={startMic}
         onSave={(record) => addExpense({ ...record, created_by: role || undefined })}
+        onUndo={async (ids) => {
+          const results = await Promise.all(ids.map((id) => deleteExpense(id)));
+          const failed = results.filter((r) => !r.ok).length;
+          toast(failed ? `${failed}건은 되돌리지 못했어요.` : '저장을 취소했어요.', failed ? 'error' : 'info');
+        }}
+        onEditSaved={(rows) => (rows.length === 1 ? openExpenseModal(rows[0]) : setSavedIds(rows.map((r) => r.id)))}
         onOpenDetail={() => { setQuick({ open: false, focus: false }); openExpenseModal(null); }}
         merchants={merchants}
         cards={cards}
@@ -323,7 +356,20 @@ export default function App() {
         nicknames={nicknames}
       />
 
+      <SavedListSheet
+        isOpen={Boolean(savedIds)}
+        onClose={() => setSavedIds(null)}
+        ids={savedIds}
+        nicknames={nicknames}
+        cardMap={cardMap}
+        onEdit={openExpenseModal}
+        onDelete={handleDelete}
+        version={version}
+        hiddenIds={pendingDeletes}
+      />
+
       <ExpenseInputModal
+        onReopen={openExpenseModal}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={(record) => addExpense({ ...record, created_by: role || undefined })}
@@ -353,6 +399,8 @@ export default function App() {
         currentUserRole={role || 'husband'}
         onRoleChange={handleRoleChange}
         theme={theme}
+        plusAction={plusAction}
+        onPlusActionChange={(v) => { setPlusAction(v); writeLocal('buboo_plus_action', v); }}
         onThemeChange={setTheme}
         onAddCard={settings.addCard}
         onHideCard={settings.hideCard}
@@ -366,6 +414,7 @@ export default function App() {
         push={settings.push}
         onSaveVapidKey={settings.saveVapidPublicKey}
         onRefreshSettings={settings.refreshSettings}
+        onDataChanged={bump}
       />
 
       {!role && <RoleSelectModal nicknames={nicknames} onSelect={handleRoleChange} />}

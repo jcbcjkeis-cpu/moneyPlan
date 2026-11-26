@@ -15,7 +15,7 @@ function matches(item, q, category) {
   return isAmountQuery(q) && String(Math.round(toNumber(item.amount))) === onlyDigits(q);
 }
 
-export default function SearchSheet({ isOpen, onClose, monthExpenses, yearMonth, cardMap, nicknames, onEdit, onDelete, initialCategory, version, hiddenIds }) {
+export default function SearchSheet({ isOpen, onClose, monthExpenses, yearMonth, cardMap, nicknames, onEdit, onDelete, initialCategory, initialQuery, initialRange, version, hiddenIds }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [scope, setScope] = useState('month');
@@ -27,21 +27,22 @@ export default function SearchSheet({ isOpen, onClose, monthExpenses, yearMonth,
   useEffect(() => {
     if (!isOpen) return undefined;
     setCategory(initialCategory || '');
-    setScope('month');
-    setQuery('');
-    if (!initialCategory) setTimeout(() => inputRef.current?.focus(), 60);
+    setScope(initialRange ? 'range' : 'month');
+    setQuery(initialQuery || '');
+    if (!initialCategory && !initialQuery) setTimeout(() => inputRef.current?.focus(), 60);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
-  }, [isOpen, initialCategory]);
+  }, [isOpen, initialCategory, initialQuery, initialRange]);
 
   useEffect(() => {
-    if (!isOpen || scope !== 'all') return undefined;
+    if (!isOpen || scope === 'month') return undefined;
     const q = query.trim();
-    if (!q && !category) { setRemote([]); return undefined; }
+    if (scope === 'all' && !q && !category) { setRemote([]); return undefined; }
     const timer = setTimeout(async () => {
       setIsLoading(true);
       let req = supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(300);
+      if (scope === 'range' && initialRange) req = req.gte('expense_date', initialRange.start).lte('expense_date', initialRange.end);
       const safe = q.replace(/[%,()*]/g, '');
       if (safe) req = isAmountQuery(q) ? req.or(`content.ilike.%${safe}%,amount.eq.${onlyDigits(q)}`) : req.ilike('content', `%${safe}%`);
       const { data, error } = await req;
@@ -49,10 +50,10 @@ export default function SearchSheet({ isOpen, onClose, monthExpenses, yearMonth,
       if (!error) setRemote((data || []).filter((i) => matches(i, '', category)));
     }, 300);
     return () => clearTimeout(timer);
-  }, [isOpen, scope, query, category, version]);
+  }, [isOpen, scope, query, category, version, initialRange]);
 
   const results = useMemo(() => {
-    const list = scope === 'all' ? remote : monthExpenses.filter((i) => matches(i, query.trim(), category));
+    const list = scope !== 'month' ? remote : monthExpenses.filter((i) => matches(i, query.trim(), category));
     return hiddenIds?.size ? list.filter((i) => !hiddenIds.has(String(i.id))) : list;
   }, [scope, remote, monthExpenses, query, category, hiddenIds]);
   const totals = useMemo(() => results.reduce((acc, i) => {
@@ -86,6 +87,9 @@ export default function SearchSheet({ isOpen, onClose, monthExpenses, yearMonth,
         <div className="px-4 pt-3">
           <div className="flex bg-fill p-1 rounded-full">
             <button type="button" onClick={() => setScope('month')} className={`flex-1 h-9 rounded-full text-[14px] font-bold ${scope === 'month' ? 'bg-card text-ink shadow-xs' : 'text-muted'}`}>{month}월만</button>
+            {initialRange && (
+              <button type="button" onClick={() => setScope('range')} className={`flex-1 h-9 rounded-full text-[14px] font-bold ${scope === 'range' ? 'bg-card text-ink shadow-xs' : 'text-muted'}`}>{initialRange.label}</button>
+            )}
             <button type="button" onClick={() => setScope('all')} className={`flex-1 h-9 rounded-full text-[14px] font-bold ${scope === 'all' ? 'bg-card text-ink shadow-xs' : 'text-muted'}`}>전체 기간</button>
           </div>
         </div>

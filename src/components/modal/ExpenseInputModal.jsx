@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ChevronDown, ClipboardPaste, CreditCard, MessageSquareText, Star, Trash2, User, Users } from 'lucide-react';
+import { CalendarDays, ChevronDown, ClipboardPaste, CreditCard, History, MessageSquareText, Star, Trash2, User, Users } from 'lucide-react';
 import Sheet from '../common/Sheet';
 import { useToast } from '../common/Toast';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, normalizeCategory } from '../../constants/categories';
-import { formatDateLabel, formatKoreanAmount, formatNumber, onlyDigits, toNumber } from '../../lib/format';
+import { formatKoreanAmount, formatNumber, toNumber, toYmd } from '../../lib/format';
 import { findCard } from '../../lib/cards';
 import { findMerchant, searchMerchants } from '../../hooks/useHistory';
 import { matchCardByIssuer, parseCardSms } from '../../lib/smsParser';
+import { evaluateAmountExpr } from '../../lib/quickParse';
+import { guessCategory } from '../../lib/autoCategory';
 import { haptic } from '../../lib/haptic';
 
 const QUICK_AMOUNTS = [
@@ -16,32 +18,45 @@ const QUICK_AMOUNTS = [
   { label: '+5만', value: 50000 },
 ];
 const LAST_CARD_KEY = 'buboo_last_card';
-const TOP_CATEGORY_COUNT = 6;
+
+// "오늘" / "어제" / "11/19 (목)" 처럼 짧게
+function shortDate(ymd) {
+  if (!ymd) return '';
+  const d = new Date(`${ymd}T00:00:00`);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const diff = Math.round((t - d) / 86400000);
+  if (diff === 0) return '오늘';
+  if (diff === 1) return '어제';
+  if (diff === 2) return '그제';
+  return `${d.getMonth() + 1}/${d.getDate()} (${'일월화수목금토'[d.getDay()]})`;
+}
 
 export default function ExpenseInputModal({
   isOpen, onClose, onSave, onUpdate, onDelete, editTarget,
   currentUserRole, cards = [], cardMap, nicknames, defaultDate,
-  merchants = [], favorites = [], favoritesAvailable, onAddFavorite, initialSms, onInitialSmsUsed,
+  merchants = [], favorites = [], favoritesAvailable, onAddFavorite, initialSms, onInitialSmsUsed, onReopen,
 }) {
   const toast = useToast();
   const [date, setDate] = useState('');
   const [isIncome, setIsIncome] = useState(false);
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(''); // 숫자 또는 계산식 ("12000+3500")
+  const [dateOpen, setDateOpen] = useState(false);
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [content, setContent] = useState('');
   const [payer, setPayer] = useState(currentUserRole);
   const [cardId, setCardId] = useState('');
   const [isJoint, setIsJoint] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [showSuggest, setShowSuggest] = useState(false);
-  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
   const [smsText, setSmsText] = useState('');
   const [lastAmountHint, setLastAmountHint] = useState(null);
   const categoryTouched = useRef(false);
+  const [autoCat, setAutoCat] = useState(null); // 이름으로 자동 고른 카테고리 (직접 고르면 null)
   const wasOpen = useRef(false);
   const initFor = useRef(null);
   const amountRef = useRef(null);
+  const contentRef = useRef(null);
   const applySmsRef = useRef(null);
 
   // 열리는 순간에만 초기화 → 입력 도중 데이터가 바뀌어도 입력값 유지
@@ -50,8 +65,9 @@ export default function ExpenseInputModal({
     if (isOpen && (!wasOpen.current || initFor.current !== target)) {
       initFor.current = target;
       categoryTouched.current = false;
-      setSmsOpen(false); setSmsText(''); setShowSuggest(false); setLastAmountHint(null);
-      setIsSaving(false); setShowAllCategories(false);
+      setAutoCat(null);
+      setSmsOpen(false); setSmsText(''); setNameFocused(false); setLastAmountHint(null); setDateOpen(false);
+      setIsSaving(false);
       if (editTarget) {
         setDate(editTarget.expense_date);
         setIsIncome(!!editTarget.is_income);
@@ -87,16 +103,42 @@ export default function ExpenseInputModal({
     wasOpen.current = isOpen;
   }, [isOpen, editTarget, cards, currentUserRole, defaultDate]);
 
-  const suggestions = useMemo(
-    () => (showSuggest ? searchMerchants(merchants, content, isIncome) : []),
-    [showSuggest, merchants, content, isIncome],
+  // 이름 추천: 입력 중일 때만, 입력칸 아래 한 줄 버튼으로 (화면을 덮지 않음)
+  const suggestions = useMemo(() => {
+    if (!nameFocused || !content.trim()) return [];
+    const q = content.trim().toLowerCase();
+    return searchMerchants(merchants, content, isIncome, 5).filter((m) => m.content.toLowerCase() !== q);
+  }, [nameFocused, merchants, content, isIncome]);
+
+  // 같은 이름의 지난 기록 → "지난번 설정" 제안 (누를 때만 적용, 자동으로 바꾸지 않음)
+  const past = useMemo(() => findMerchant(merchants, content, isIncome), [merchants, content, isIncome]);
+
+  // 즐겨찾기만 위에 보여줌 (자주 쓴 곳은 빠른 입력에서)
+  const quickChips = useMemo(
+    () => (editTarget ? [] : favorites.map((f) => ({ ...f, kind: 'fav' }))),
+    [editTarget, favorites],
   );
 
-  const quickChips = useMemo(() => {
-    if (editTarget) return [];
-    if (favorites.length > 0) return favorites.map((f) => ({ ...f, kind: 'fav' }));
-    return merchants.filter((m) => !m.is_income && m.count >= 2).slice(0, 6).map((m) => ({ ...m, kind: 'freq', amount: null }));
-  }, [editTarget, favorites, merchants]);
+  // 카테고리 자동 분류: 같은 이름의 지난 기록 → 이름 속 단어(1,000여 개)
+  //  - 새로 입력할 때만, 카테고리를 직접 누르기 전까지만 바꿈
+  const guessedCategory = useMemo(() => {
+    if (editTarget || !content.trim()) return null;
+    const pastCat = past ? normalizeCategory(past.category, isIncome) : null;
+    if (pastCat && !/^기타/.test(pastCat)) return pastCat;
+    return guessCategory(content, { income: isIncome }) || pastCat;
+  }, [editTarget, content, past, isIncome]);
+
+  useEffect(() => {
+    if (!isOpen || editTarget || categoryTouched.current) return;
+    if (guessedCategory) {
+      setCategory(guessedCategory);
+      setAutoCat(guessedCategory);
+    } else if (autoCat) {
+      setCategory(isIncome ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0]);
+      setAutoCat(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guessedCategory, isOpen, editTarget]);
 
   // 자주 쓰는 카테고리 순서 (과거 기록 기준)
   const orderedCategories = useMemo(() => {
@@ -110,11 +152,23 @@ export default function ExpenseInputModal({
     return [...base].sort((a, b) => (score[b] || 0) - (score[a] || 0) || base.indexOf(a) - base.indexOf(b));
   }, [merchants, isIncome]);
 
-  const visibleCategories = useMemo(() => {
-    if (showAllCategories || isIncome) return orderedCategories;
-    const top = orderedCategories.slice(0, TOP_CATEGORY_COUNT);
-    return top.includes(category) ? top : [...top.slice(0, TOP_CATEGORY_COUNT - 1), category];
-  }, [orderedCategories, showAllCategories, isIncome, category]);
+  // 카테고리는 한 줄로 옆으로 넘기기, 고른 것은 맨 앞에
+  const visibleCategories = useMemo(
+    () => [category, ...orderedCategories.filter((c) => c !== category)],
+    [orderedCategories, category],
+  );
+
+  // 금액: 계산식이면 계산 결과, 아니면 숫자
+  const isExpr = /[+\-×÷*/()]/.test(amount);
+  const amountValue = amount ? evaluateAmountExpr(amount) : null;
+  const amountStr = amountValue ? String(amountValue) : '';
+  const showAmount = (v) => (/[+\-×÷*/()]/.test(v) ? v.replace(/\d+/g, (d) => formatNumber(d)) : v ? formatNumber(v) : '');
+  const typeAmount = (raw) => {
+    const t = raw.replace(/,/g, '').replace(/\*/g, '×').replace(/\//g, '÷').replace(/[^0-9+\-×÷()]/g, '').slice(0, 40);
+    setAmount(t);
+  };
+  const addOp = (op) => setAmount((prev) => (prev && !/[+\-×÷]$/.test(prev) ? prev + op : prev.replace(/[+\-×÷]$/, '') + (prev ? op : '')));
+  const collapseExpr = () => { if (isExpr && amountValue) setAmount(String(amountValue)); };
 
   const selectedCard = findCard(cardMap, cardId);
   const nameOf = (role) => (role === 'husband' ? nicknames.husband : role === 'wife' ? nicknames.wife : '공용');
@@ -139,13 +193,14 @@ export default function ExpenseInputModal({
     setIsIncome(income);
     setCategory(income ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0]);
     categoryTouched.current = false;
+    setAutoCat(null);
   };
 
   const applyTemplate = (t, { withAmount }) => {
     setIsIncome(!!t.is_income);
     setContent(t.content);
     setCategory(normalizeCategory(t.category, t.is_income));
-    categoryTouched.current = true;
+    categoryTouched.current = true; setAutoCat(null);
     if (!t.is_income) {
       setIsJoint(t.is_joint_expense !== false);
       const card = findCard(cardMap, t.card_id);
@@ -154,14 +209,31 @@ export default function ExpenseInputModal({
     }
     if (withAmount && t.amount) setAmount(String(Math.round(toNumber(t.amount))));
     setLastAmountHint(!withAmount && t.amount ? Math.round(toNumber(t.amount)) : null);
-    setShowSuggest(false);
   };
 
-  const handleContentBlur = () => {
-    setTimeout(() => setShowSuggest(false), 150);
-    if (categoryTouched.current) return;
-    const hit = findMerchant(merchants, content, isIncome);
-    if (hit) applyTemplate(hit, { withAmount: false });
+  // 지난번 설정 중 지금과 다른 것만 골라 보여줌
+  const pastCard = past && !past.is_income ? findCard(cardMap, past.card_id) : null;
+  const pastDiff = past ? {
+    category: normalizeCategory(past.category, past.is_income) !== category ? normalizeCategory(past.category, past.is_income) : null,
+    card: !isIncome && pastCard?.is_active && String(pastCard.id) !== String(cardId) ? pastCard : null,
+    joint: !isIncome && (past.is_joint_expense !== false) !== isJoint ? (past.is_joint_expense !== false) : null,
+    amount: past.amount && String(Math.round(toNumber(past.amount))) !== amountStr ? Math.round(toNumber(past.amount)) : null,
+  } : null;
+  const hasPastDiff = pastDiff && (pastDiff.category || pastDiff.card || pastDiff.joint !== null);
+
+  const applyPast = () => {
+    if (!pastDiff) return;
+    if (pastDiff.category) { setCategory(pastDiff.category); categoryTouched.current = true; setAutoCat(null); }
+    if (pastDiff.card) selectCard(String(pastDiff.card.id));
+    if (pastDiff.joint !== null) setIsJoint(pastDiff.joint);
+    haptic();
+  };
+
+  // 입력칸을 누르면 키보드 위로 보이게 스크롤
+  const keepVisible = (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) || el.type === 'date') return;
+    setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 320);
   };
 
   const applySms = (text) => {
@@ -179,7 +251,7 @@ export default function ExpenseInputModal({
     if (hit) {
       setCategory(normalizeCategory(hit.category, false));
       setIsJoint(hit.is_joint_expense !== false);
-      categoryTouched.current = true;
+      categoryTouched.current = true; setAutoCat(null);
     }
     const notes = [];
     if (!card && result.issuerKey) notes.push(`'${result.issuerKey}' 카드를 찾지 못했어요. 설정에서 카드 이름에 '${result.issuerKey}'를 넣으면 자동 선택돼요`);
@@ -207,12 +279,13 @@ export default function ExpenseInputModal({
     setIsIncome(false);
     setLastAmountHint(null);
     categoryTouched.current = false;
+    setAutoCat(null);
     amountRef.current?.focus({ preventScroll: true });
   };
 
   const submit = async (keepOpen) => {
     if (isSaving) return;
-    const amountNum = Number(amount);
+    const amountNum = amountValue || 0;
     if (!amountNum || amountNum <= 0) { toast('금액을 입력해주세요.', 'error'); amountRef.current?.focus(); return; }
     if (!content.trim()) { toast('어디서 / 무엇을 썼는지 입력해주세요.', 'error'); return; }
     if (!date) { toast('날짜를 선택해주세요.', 'error'); return; }
@@ -240,7 +313,11 @@ export default function ExpenseInputModal({
       toast(`${payload.content} ${formatNumber(amountNum)}원 등록했어요. 이어서 입력하세요.`, 'success', { duration: 2000 });
       resetForNext();
     } else {
-      toast(editTarget ? '수정했어요.' : '등록했어요.', 'success', { duration: 1800 });
+      const saved = !editTarget ? res.data : null;
+      toast(editTarget ? '수정했어요.' : `${payload.content} ${formatNumber(amountNum)}원 등록했어요.`, 'success', {
+        duration: saved ? 5000 : 1800,
+        action: saved && onReopen ? { label: '수정', onClick: () => onReopen(saved) } : undefined,
+      });
       onClose();
     }
   };
@@ -250,15 +327,14 @@ export default function ExpenseInputModal({
     if (!content.trim()) { toast('내역 이름을 먼저 입력해주세요.', 'error'); return; }
     const card = findCard(cardMap, cardId);
     const res = await onAddFavorite({
-      content: content.trim(), category, amount: Number(amount) || null,
+      content: content.trim(), category, amount: amountValue || null,
       card_id: isIncome || !card ? null : String(card.id), is_income: isIncome, is_joint_expense: isIncome ? false : isJoint,
     });
     if (res.ok) haptic();
     toast(res.ok ? `'${content.trim()}' 즐겨찾기에 추가했어요.` : `추가하지 못했어요: ${res.error}`, res.ok ? 'success' : 'error');
   };
 
-  const pill = 'relative h-11 px-3.5 rounded-full bg-fill text-[14px] font-semibold text-ink flex items-center gap-1.5 shrink-0';
-  const jointHelp = isIncome ? null : isJoint ? '공용 생활비로 기록돼요. (통계의 공용 생활비에 포함)' : '개인 지출로 기록돼요.';
+  const pill = 'relative h-10 px-3 rounded-full bg-fill text-[13px] font-semibold text-ink flex items-center gap-1.5 shrink-0';
 
   const footer = editTarget ? (
     <div className="flex gap-2">
@@ -296,10 +372,10 @@ export default function ExpenseInputModal({
         </button>
       )}
     >
-      <form onSubmit={(e) => { e.preventDefault(); submit(false); }} className="px-5 pb-5 space-y-5">
+      <form onSubmit={(e) => { e.preventDefault(); submit(false); }} onFocusCapture={keepVisible} className="px-5 pb-4 space-y-4">
         {smsOpen && (
           <div className="p-3 bg-fill rounded-2xl space-y-2 animate-fade-in">
-            <p className="text-[13px] text-ink2">카드 승인 문자를 복사해서 붙여넣으면 금액·사용처·날짜·카드를 채워드려요.</p>
+            <p className="text-[13px] text-ink2">카드 승인 문자를 붙여넣으면 금액·사용처·날짜·카드를 채워드려요.</p>
             {typeof navigator !== 'undefined' && navigator.clipboard?.readText && (
               <button type="button" onClick={pasteFromClipboard} className="w-full h-11 rounded-xl bg-ink text-card text-[14px] font-bold flex items-center justify-center gap-1.5">
                 <ClipboardPaste size={17} /> 복사한 문자 붙여넣기
@@ -308,7 +384,7 @@ export default function ExpenseInputModal({
             <textarea
               value={smsText}
               onChange={(e) => { setSmsText(e.target.value); if (/\d\s*원/.test(e.target.value)) applySms(e.target.value); }}
-              rows={3}
+              rows={2}
               placeholder="여기에 붙여넣어도 돼요"
               className="w-full bg-card border border-line rounded-xl px-3 py-2 text-base text-ink placeholder:text-muted focus:outline-none focus:border-husband"
               aria-label="카드 문자 내용"
@@ -316,169 +392,190 @@ export default function ExpenseInputModal({
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <div className="flex bg-fill p-1 rounded-full" role="group" aria-label="지출 또는 수입">
-            <button type="button" onClick={() => switchType(false)} aria-pressed={!isIncome} className={`h-9 px-4 rounded-full text-[14px] font-bold ${!isIncome ? 'bg-card text-ink shadow-xs' : 'text-muted'}`}>지출</button>
-            <button type="button" onClick={() => switchType(true)} aria-pressed={isIncome} className={`h-9 px-4 rounded-full text-[14px] font-bold ${isIncome ? 'bg-card text-income shadow-xs' : 'text-muted'}`}>수입</button>
-          </div>
-        </div>
-
+        {/* 즐겨찾기 (있을 때만, 한 줄) */}
         {quickChips.length > 0 && (
-          <div>
-            <p className="text-[13px] font-semibold text-muted mb-2 flex items-center gap-1">
-              {quickChips[0].kind === 'fav' ? <><Star size={14} className="text-warn" /> 즐겨찾기</> : '자주 쓴 내역'}
-            </p>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
-              {quickChips.map((chip) => (
-                <button
-                  key={`${chip.kind}-${chip.id}`}
-                  type="button"
-                  onClick={() => applyTemplate(chip, { withAmount: chip.kind === 'fav' })}
-                  className="shrink-0 h-10 px-3.5 rounded-full border border-line bg-card text-[14px] font-semibold text-ink2 active:scale-95"
-                >
-                  {chip.content}
-                  {chip.amount ? <span className="text-muted font-medium ml-1 num">{formatNumber(chip.amount)}</span> : null}
-                </button>
-              ))}
-            </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
+            <Star size={16} className="text-warn shrink-0 self-center" aria-label="즐겨찾기" />
+            {quickChips.map((chip) => (
+              <button key={chip.id} type="button" onClick={() => applyTemplate(chip, { withAmount: true })} className="shrink-0 h-9 px-3 rounded-full border border-line bg-card text-[13px] font-semibold text-ink2 active:scale-95">
+                {chip.content}{chip.amount ? <span className="text-muted font-medium ml-1 num">{formatNumber(chip.amount)}</span> : null}
+              </button>
+            ))}
           </div>
         )}
 
+        {/* 1. 금액 */}
         <div>
-          <label htmlFor="exp-amount" className="sr-only">금액</label>
-          <div className="flex items-baseline gap-1 border-b-2 border-line focus-within:border-ink pb-1">
-            <input
-              ref={amountRef}
-              id="exp-amount"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              enterKeyHint="next"
-              value={amount ? formatNumber(amount) : ''}
-              onChange={(e) => setAmount(onlyDigits(e.target.value).slice(0, 12))}
-              placeholder="0"
-              className={`num flex-1 min-w-0 bg-transparent text-[36px] font-extrabold focus:outline-none placeholder:text-line ${isIncome ? 'text-income' : 'text-ink'}`}
-            />
-            <span className="text-[20px] font-bold text-muted">원</span>
+          <div className="flex items-center gap-2">
+            <div className="flex bg-fill p-1 rounded-full shrink-0" role="group" aria-label="지출 또는 수입">
+              <button type="button" onClick={() => switchType(false)} aria-pressed={!isIncome} className={`h-8 px-3 rounded-full text-[13px] font-bold ${!isIncome ? 'bg-card text-ink shadow-xs' : 'text-muted'}`}>지출</button>
+              <button type="button" onClick={() => switchType(true)} aria-pressed={isIncome} className={`h-8 px-3 rounded-full text-[13px] font-bold ${isIncome ? 'bg-card text-income shadow-xs' : 'text-muted'}`}>수입</button>
+            </div>
+            <div className="flex-1 min-w-0 flex items-baseline gap-1 border-b-2 border-line focus-within:border-ink">
+              <label htmlFor="exp-amount" className="sr-only">금액</label>
+              <input
+                ref={amountRef}
+                id="exp-amount"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                enterKeyHint="next"
+                value={showAmount(amount)}
+                onChange={(e) => typeAmount(e.target.value)}
+                onBlur={collapseExpr}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); contentRef.current?.focus(); } }}
+                placeholder="0"
+                className={`num flex-1 min-w-0 bg-transparent text-right text-[30px] font-extrabold focus:outline-none placeholder:text-line ${isIncome ? 'text-income' : 'text-ink'}`}
+              />
+              <span className="text-[17px] font-bold text-muted">원</span>
+            </div>
           </div>
-          <div className="flex items-center justify-between mt-1.5 min-h-[20px]">
-            <span className="text-[14px] font-semibold text-husband">{formatKoreanAmount(amount)}</span>
-            {lastAmountHint && String(lastAmountHint) !== amount && (
-              <button type="button" onClick={() => setAmount(String(lastAmountHint))} className="text-[13px] font-semibold text-muted underline underline-offset-2">
-                지난번 {formatNumber(lastAmountHint)}원
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-5 gap-2 mt-2">
+          {amount && (
+            <p className="text-right text-[13px] font-semibold text-husband num mt-1 min-h-[18px]">
+              {isExpr ? (amountValue ? `= ${formatNumber(amountValue)}원` : '계산식을 마저 입력하세요') : formatKoreanAmount(amountStr)}
+            </p>
+          )}
+          <div className="flex items-center gap-1.5 mt-2 overflow-x-auto no-scrollbar -mx-5 px-5">
             {QUICK_AMOUNTS.map((q) => (
-              <button key={q.label} type="button" onClick={() => setAmount(String((Number(amount) || 0) + q.value))} className="h-11 rounded-xl bg-fill text-[14px] font-semibold text-ink2 active:scale-95">
+              <button key={q.label} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => setAmount(String((amountValue || 0) + q.value))} className="shrink-0 h-9 px-3 rounded-full bg-fill text-[13px] font-semibold text-ink2 active:scale-95">
                 {q.label}
               </button>
             ))}
-            <button type="button" onClick={() => setAmount('')} className="h-11 rounded-xl border border-line text-[14px] font-semibold text-muted active:scale-95">지우기</button>
+            {/* 계산 버튼: 누르는 동안 키보드가 닫히지 않게 */}
+            {['+', '−', '×', '÷'].map((op) => (
+              <button key={op} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => { addOp(op === '−' ? '-' : op); amountRef.current?.focus({ preventScroll: true }); }} aria-label={`계산 ${op}`} className="shrink-0 w-9 h-9 rounded-full border border-line text-[16px] font-bold text-ink2 active:scale-95">
+                {op}
+              </button>
+            ))}
+            {amountValue > 1 && (
+              <button type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => setAmount(String(Math.round(amountValue / 2)))} className="shrink-0 h-9 px-3 rounded-full border border-line text-[13px] font-semibold text-ink2 active:scale-95" aria-label="반으로 나누기">
+                반반
+              </button>
+            )}
+            {amount && <button type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => setAmount('')} className="shrink-0 h-9 px-3 rounded-full text-[13px] font-semibold text-muted">지우기</button>}
           </div>
         </div>
 
-        <div className="relative">
-          <label htmlFor="exp-content" className="block text-[13px] font-semibold text-muted mb-1.5">어디서 / 무엇을</label>
+        {/* 2. 어디서 / 무엇을 */}
+        <div>
           <input
+            ref={contentRef}
             id="exp-content"
             type="text"
             autoComplete="off"
             enterKeyHint="done"
             value={content}
-            onChange={(e) => { setContent(e.target.value); setShowSuggest(true); }}
-            onFocus={() => setShowSuggest(true)}
-            onBlur={handleContentBlur}
-            placeholder={isIncome ? '예: 9월 월급, 당근마켓 판매' : '예: 이마트, 배달의민족, 관리비'}
+            onChange={(e) => setContent(e.target.value)}
+            onFocus={() => setNameFocused(true)}
+            onBlur={() => setTimeout(() => setNameFocused(false), 150)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+            placeholder={isIncome ? '어디서 들어온 돈? (예: 월급)' : '어디서 썼나요? (예: 이마트)'}
+            aria-label="어디서 / 무엇을"
             className="w-full h-12 bg-fill rounded-xl px-4 text-base font-semibold text-ink placeholder:text-muted placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-husband"
           />
+          {/* 이름 추천: 눌러야 이름만 바뀜 */}
           {suggestions.length > 0 && (
-            <ul className="absolute left-0 right-0 top-full mt-1 z-10 bg-card border border-line rounded-xl shadow-xl overflow-hidden">
-              {suggestions.map((s) => {
-                const card = findCard(cardMap, s.card_id);
-                return (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => applyTemplate(s, { withAmount: false })}
-                      className="w-full min-h-[48px] text-left px-4 py-2 active:bg-fill flex items-center justify-between gap-2 border-b border-line last:border-0"
-                    >
-                      <span className="text-[15px] font-semibold text-ink truncate">{s.content}</span>
-                      <span className="text-[12px] text-muted shrink-0">
-                        {normalizeCategory(s.category, s.is_income)}{card ? ` · ${card.card_name}` : ''} · {s.count}회
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="flex gap-1.5 mt-2 overflow-x-auto no-scrollbar -mx-5 px-5">
+              {suggestions.map((m) => (
+                <button
+                  key={m.id ?? m.content}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setContent(m.content)}
+                  className="shrink-0 h-9 px-3 rounded-full border border-line bg-card text-[13px] font-semibold text-ink2 active:scale-95"
+                >
+                  {m.content}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* 지난번 설정 제안: 자동으로 바꾸지 않고, 눌러야 적용 */}
+          {!nameFocused && past && (hasPastDiff || pastDiff?.amount) && (
+            <div className="mt-2 flex items-center gap-2 rounded-xl bg-fill px-3 py-2">
+              <History size={15} className="text-muted shrink-0" />
+              <p className="flex-1 min-w-0 text-[13px] text-ink2 truncate">
+                지난번: {[pastDiff.category, pastDiff.card?.card_name, pastDiff.joint === null ? null : pastDiff.joint ? '공용' : '개인'].filter(Boolean).join(' · ') || '같은 설정'}
+                {pastDiff.amount ? <span className="num"> · {formatNumber(pastDiff.amount)}원</span> : null}
+              </p>
+              {hasPastDiff && <button type="button" onClick={applyPast} className="shrink-0 h-8 px-3 rounded-lg bg-card border border-line text-[13px] font-bold text-ink">적용</button>}
+              {pastDiff.amount && <button type="button" onClick={() => setAmount(String(pastDiff.amount))} className="shrink-0 h-8 px-3 rounded-lg bg-card border border-line text-[13px] font-bold text-ink">금액</button>}
+            </div>
+          )}
+          {lastAmountHint && !past && String(lastAmountHint) !== amountStr && (
+            <button type="button" onClick={() => setAmount(String(lastAmountHint))} className="mt-2 text-[13px] font-semibold text-muted underline underline-offset-2">지난번 {formatNumber(lastAmountHint)}원 넣기</button>
           )}
         </div>
 
-        <div>
-          <div className="flex gap-2 flex-wrap">
-            <label className={pill}>
-              <CalendarDays size={16} className="text-muted" />
-              {formatDateLabel(date)}
+        {/* 3. 카테고리 (한 줄, 옆으로 넘기기) */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-5 px-5" role="group" aria-label="카테고리">
+          {visibleCategories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => { setCategory(cat); categoryTouched.current = true; setAutoCat(null); }}
+              aria-pressed={category === cat}
+              className={`shrink-0 h-9 px-3 rounded-full text-[13px] font-semibold border transition ${category === cat ? 'bg-ink text-card border-ink' : 'bg-card text-ink2 border-line'}`}
+            >
+              {cat}
+              {autoCat === cat && category === cat && <span className="ml-1 text-[11px] font-bold opacity-70">자동</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* 4. 날짜 · 결제자 · 카드 · 공용 */}
+        <div className="flex gap-1.5 flex-wrap">
+          <button type="button" onClick={() => setDateOpen((v) => !v)} aria-expanded={dateOpen} className={`${pill} ${dateOpen ? 'ring-2 ring-ink' : ''}`}>
+            <CalendarDays size={15} className="text-muted" />
+            {shortDate(date)}
+          </button>
+          <button type="button" onClick={togglePayer} className={pill} aria-label={`${isIncome ? '받은 사람' : '결제자'}: ${nameOf(payer)}. 누르면 바뀝니다`}>
+            <User size={15} className={payer === 'husband' ? 'text-husband' : 'text-wife'} />
+            {nameOf(payer)}
+          </button>
+          {!isIncome && (
+            <>
+              <label className={pill}>
+                <CreditCard size={15} className="text-muted" />
+                <span className="max-w-[110px] truncate">{selectedCard ? selectedCard.card_name : '현금/기타'}</span>
+                <ChevronDown size={14} className="text-muted" />
+                <select value={cardId} onChange={(e) => selectCard(e.target.value)} className="absolute inset-0 opacity-0 w-full h-full text-base cursor-pointer" aria-label="결제 카드 선택">
+                  <option value="">현금 / 기타</option>
+                  {cards.map((c) => <option key={c.id} value={String(c.id)}>{c.card_name} ({nameOf(c.owner)})</option>)}
+                  {selectedCard && !selectedCard.is_active && <option value={String(selectedCard.id)}>{selectedCard.card_name} (숨긴 카드)</option>}
+                </select>
+              </label>
+              <button type="button" onClick={() => setIsJoint((v) => !v)} aria-pressed={isJoint} className={`${pill} ${isJoint ? '!bg-joint-soft !text-joint' : ''}`}>
+                <Users size={15} />
+                {isJoint ? '공용' : '개인'}
+              </button>
+            </>
+          )}
+        </div>
+        {/* 날짜 빠른 선택: 오늘 / 어제 / 그제 / 달력 */}
+        {dateOpen && (
+          <div className="flex gap-1.5 flex-wrap animate-fade-in" role="group" aria-label="날짜 빠른 선택">
+            {[0, 1, 2, 3].map((n) => {
+              const d = new Date(); d.setDate(d.getDate() - n);
+              const v = toYmd(d);
+              return (
+                <button key={n} type="button" onClick={() => { setDate(v); setDateOpen(false); }} aria-pressed={date === v} className={`h-10 px-3.5 rounded-full text-[13px] font-semibold border ${date === v ? 'bg-ink text-card border-ink' : 'bg-card text-ink2 border-line'}`}>
+                  {['오늘', '어제', '그제', '3일 전'][n]}
+                </button>
+              );
+            })}
+            <label className="relative h-10 px-3.5 rounded-full text-[13px] font-semibold border border-line bg-card text-ink2 flex items-center gap-1.5 cursor-pointer">
+              <CalendarDays size={15} /> 달력에서 고르기
               <input
                 type="date"
                 value={date}
-                onChange={(e) => e.target.value && setDate(e.target.value)}
+                onChange={(e) => { if (e.target.value) { setDate(e.target.value); setDateOpen(false); } }}
                 onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* 무시 */ } }}
                 className="absolute inset-0 opacity-0 w-full h-full text-base cursor-pointer"
-                aria-label="날짜 변경"
+                aria-label="달력에서 날짜 고르기"
               />
             </label>
-            <button type="button" onClick={togglePayer} className={pill} aria-label={`${isIncome ? '번 사람' : '결제자'}: ${nameOf(payer)}. 누르면 바뀝니다`}>
-              <User size={16} className={payer === 'husband' ? 'text-husband' : 'text-wife'} />
-              {nameOf(payer)}
-            </button>
-            {!isIncome && (
-              <>
-                <label className={pill}>
-                  <CreditCard size={16} className="text-muted" />
-                  <span className="max-w-[120px] truncate">{selectedCard ? selectedCard.card_name : '현금/기타'}</span>
-                  <ChevronDown size={14} className="text-muted" />
-                  <select value={cardId} onChange={(e) => selectCard(e.target.value)} className="absolute inset-0 opacity-0 w-full h-full text-base cursor-pointer" aria-label="결제 카드 선택">
-                    <option value="">현금 / 기타</option>
-                    {cards.map((c) => <option key={c.id} value={String(c.id)}>{c.card_name} ({nameOf(c.owner)})</option>)}
-                    {selectedCard && !selectedCard.is_active && <option value={String(selectedCard.id)}>{selectedCard.card_name} (숨긴 카드)</option>}
-                  </select>
-                </label>
-                <button type="button" onClick={() => setIsJoint((v) => !v)} aria-pressed={isJoint} className={`${pill} ${isJoint ? '!bg-joint-soft !text-joint' : ''}`}>
-                  <Users size={16} />
-                  {isJoint ? '공용 생활비' : '개인 지출'}
-                </button>
-              </>
-            )}
           </div>
-          {jointHelp && <p className="text-[13px] text-muted mt-2 px-1">{jointHelp}</p>}
-        </div>
-
-        <div>
-          <p className="text-[13px] font-semibold text-muted mb-2">카테고리</p>
-          <div className="flex flex-wrap gap-2">
-            {visibleCategories.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => { setCategory(cat); categoryTouched.current = true; }}
-                aria-pressed={category === cat}
-                className={`h-10 px-3.5 rounded-full text-[14px] font-semibold border transition ${category === cat ? 'bg-ink text-card border-ink' : 'bg-card text-ink2 border-line'}`}
-              >
-                {cat}
-              </button>
-            ))}
-            {!isIncome && (
-              <button type="button" onClick={() => setShowAllCategories((v) => !v)} className="h-10 px-3.5 rounded-full text-[14px] font-semibold text-husband">
-                {showAllCategories ? '접기' : `더보기 (${EXPENSE_CATEGORIES.length - visibleCategories.length})`}
-              </button>
-            )}
-          </div>
-        </div>
-
+        )}
         <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
       </form>
     </Sheet>

@@ -15,8 +15,10 @@ export function ToastProvider({ children }) {
 
   const show = useCallback((message, type = 'info', options = {}) => {
     const id = ++seq.current;
-    const duration = options.duration ?? (options.action ? 4500 : type === 'error' ? 5000 : 2600);
-    setToasts((prev) => [...prev.slice(-2), { id, message, type, action: options.action }]);
+    // 버튼은 하나(action) 또는 여러 개(actions)
+    const actions = options.actions || (options.action ? [options.action] : []);
+    const duration = options.duration ?? (actions.length ? 4500 : type === 'error' ? 5000 : 2600);
+    setToasts((prev) => [...prev.slice(-2), { id, message, type, actions }]);
     setTimeout(() => dismiss(id), duration);
     return id;
   }, [dismiss]);
@@ -39,15 +41,16 @@ export function ToastProvider({ children }) {
             >
               <Icon size={18} className={`shrink-0 ${ICON_COLOR[t.type]}`} />
               <span className="text-[14px] font-medium leading-snug flex-1">{t.message}</span>
-              {t.action && (
+              {t.actions.map((a) => (
                 <button
+                  key={a.label}
                   type="button"
-                  onClick={() => { t.action.onClick(); dismiss(t.id); }}
-                  className="shrink-0 h-9 px-3 rounded-xl text-[14px] font-bold text-sky-300"
+                  onClick={() => { a.onClick(); dismiss(t.id); }}
+                  className="shrink-0 h-9 px-2.5 rounded-xl text-[14px] font-bold text-sky-300"
                 >
-                  {t.action.label}
+                  {a.label}
                 </button>
-              )}
+              ))}
             </div>
           );
         })}

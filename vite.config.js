@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'shortcut-quick.png', 'shortcut-mic.png', 'shortcut-add.png', 'shortcut-search.png'],
       manifest: {
         id: '/',
         name: '부부로그 - 부부 전용 커스텀 가계부',
@@ -20,7 +20,13 @@ export default defineConfig({
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
-        shortcuts: [{ name: '지출 입력', short_name: '입력', url: '/?add=1', icons: [{ src: 'icon-192.png', sizes: '192x192' }] }],
+        // 안드로이드: 홈 화면 아이콘을 길게 누르면 나오는 바로가기
+        shortcuts: [
+          { name: '빠른 입력', short_name: '빠른 입력', description: '"이마트 5만 2천"처럼 한 줄로 입력', url: '/?quick=1', icons: [{ src: 'shortcut-quick.png', sizes: '96x96', type: 'image/png' }] },
+          { name: '말로 입력', short_name: '말로 입력', description: '말하면 바로 입력', url: '/?mic=1', icons: [{ src: 'shortcut-mic.png', sizes: '96x96', type: 'image/png' }] },
+          { name: '자세히 입력', short_name: '자세히 입력', url: '/?add=1', icons: [{ src: 'shortcut-add.png', sizes: '96x96', type: 'image/png' }] },
+          { name: '내역 검색', short_name: '검색', url: '/?search=1', icons: [{ src: 'shortcut-search.png', sizes: '96x96', type: 'image/png' }] },
+        ],
         // 아이콘 파일은 public/ 폴더에 있어야 설치가 가능함 (없으면 크롬이 "설치할 수 없습니다" 표시)
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

@@ -1,23 +1,36 @@
-# 부부로그 v8
+# 부부로그 v9.2
 
-1. 배경 사진: 올리기 전에 화면 크기(최대 1280×1600)로 줄이고 JPEG로 변환 → 버벅임·화면 깨짐 해결, HEIC 사진은 안내 후 차단
-2. 정산 기능 제거: 정산 탭/알림/문구 삭제, 하단 메뉴 정산 자리에 '검색', 카드별 사용액은 통계 탭 맨 아래로 이동
-3. 빠른 입력: 홈 화면 "빠른 입력" → "이마트 5만 2천 스타벅스 4500"처럼 한 줄로 여러 건 저장
-4. 마이크 입력: 홈 화면 🎤 버튼 → 말하면 바로 빠른 입력에 채워짐
+## 빠른 입력·말로 입력: 카드를 주인과 함께 말하기
+- "내 우리카드", "와이프 삼성카드", "남편 음성페이", "파덕 삼성", "와이프꺼 삼성", "와이프카드", "남편꺼", "와이프 현금"
+- 앞에 말해도 됨: "와이프 삼성카드로 다이소 3만", "내 삼성카드로 주유 5만"
+- 이름이 같은 카드(둘 다 '삼성카드'): 말한 사람 → 말하는 사람(이 폰 주인) 카드로 고름. 화면에 "삼성카드 · 파덕"처럼 주인 표시
+- "이마트 5만 와이프"처럼 끝에 누가만 붙여도 앞 건의 결제자로
+- 등록 안 된 카카오페이·네이버페이 등은 사용처로 잘못 들어가지 않음
+- 안내 예시에 우리 집 실제 카드 이름 표시
 
-## 올릴 파일
-- 새 파일: src/lib/image.js, src/lib/cards.js, src/lib/quickParse.js, src/hooks/useSpeech.js,
-  src/components/quick/QuickAddSheet.jsx
-- 수정: src/App.jsx, src/hooks/useSettings.js, src/hooks/useRealtimeSync.js,
-  src/components/calendar/CalendarHome.jsx, src/components/common/BottomNav.jsx,
-  src/components/expense/ExpenseItem.jsx, src/components/modal/ExpenseInputModal.jsx,
-  src/components/modal/SettingsModal.jsx, src/components/modal/NotificationSettings.jsx,
-  src/components/statistics/StatisticsTab.jsx, src/utils/exportToCsv.js, src/setup/pushServerFiles.js
+## v9.1
 
-## GitHub에서 지워도 되는 파일 (안 지워도 동작에는 문제 없음)
-- src/components/settlement/CardSettlementTab.jsx
-- src/hooks/useSettlements.js
-- src/lib/settlement.js
+## 카테고리 자동 분류
+- 사용처 이름으로 카테고리 자동 선택: 상호·단어 약 1,070개 (334개 이름 테스트 통과)
+  - 예) 메가박스→문화/여가, 메가커피→카페/간식, 쿠팡이츠→식비, 쿠팡→장보기, KTX→교통(통신 KT 아님)
+- 빠른 입력·말로 입력: 지난 기록 → 이름 단어 순서로 분류. 지난 기록이 '기타'면 이름으로 다시 추측
+- 자세히 입력: 이름을 쓰면 카테고리가 자동으로 바뀌고 '자동' 표시. 카테고리를 직접 누르면 그 뒤로는 안 바뀜
+- 설정 → 사용처: '기타'로 들어간 옛 내역(시리 입력 등) 한 번에 분류 + 되돌리기
 
-## Supabase에서 한 번 실행 (월말 정산 알림 끄기)
-select cron.unschedule(jobid) from cron.job where jobname = 'bubolog-daily';
+## v9.0
+
+## 새 기능
+- 저장 후 바로 수정: 저장 알림의 [수정] (빠른 입력으로 여러 건이면 "방금 저장한 N건" 목록)
+- 날짜 빠른 선택: 자세히 입력에서 날짜 → [오늘][어제][그제][3일 전][달력]
+- 금액 칸 계산: + − × ÷ 버튼, "12000+3500" → 15,500원, [반반]
+- 앱 아이콘 바로가기(안드로이드): 아이콘 길게 누르기 → 빠른 입력 / 말로 입력 / 자세히 입력 / 검색
+- 사용처 이름 합치기: 설정 → 사용처 (비슷한 이름 제안, 직접 골라 합치기, 되돌리기)
+- 통계: 월 / 주 / 최근 30일 / 올해, 추이 그래프, 요일별 평균, 많이 쓴 곳 TOP 10, 가장 큰 지출
+- 빠른 등록: 날짜(3일 전, 금요일, 지난주 금요일, 11월 3일), 계산·수량(48000/2, 2잔), 분류(장보기, #식비),
+  누가(와이프가, 이름), 환불, 계좌이체 등 64가지 문장 테스트 통과
+
+## 함께 들어간 것 (GitHub에 아직 안 올라간 v8.1~v8.3)
+- 빠른 입력 콤마·카드 이름 일부, 아이폰 음성, 자세히 입력 자동입력 개선
+
+## 올릴 것
+- src 폴더 전체 + public 폴더 전체 + vite.config.js
