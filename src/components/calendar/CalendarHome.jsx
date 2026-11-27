@@ -174,7 +174,6 @@ export default function CalendarHome({
                 })}
               </div>
             </div>
-            <p className="text-center text-[12px] text-muted mt-2">날짜를 누르면 내역, 좌우로 밀면 다른 달</p>
           </section>
 
           {installBanner}

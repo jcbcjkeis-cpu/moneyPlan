@@ -23,9 +23,9 @@ export default function SavedListSheet({ isOpen, onClose, ids, nicknames, cardMa
   const total = visible.filter((r) => !r.is_income).reduce((a, r) => a + toNumber(r.amount), 0);
 
   return (
-    <Sheet isOpen={isOpen} onClose={onClose} title={`방금 저장한 ${visible.length}건`} maxHeight="75dvh">
+    <Sheet isOpen={isOpen} onClose={onClose} title={`방금 저장한 ${visible.length}건`} maxHeight="75dvh" help="누르면 수정, 왼쪽으로 밀면 삭제할 수 있어요.">
       <div className="px-4 pb-5">
-        <p className="text-[13px] text-muted px-1 mb-3 num">지출 {formatNumber(total)}원 · 누르면 수정, 왼쪽으로 밀면 삭제</p>
+        <p className="text-[13px] text-muted px-1 mb-3 num">지출 {formatNumber(total)}원</p>
         <div className="space-y-2">
           {visible.map((item) => (
             <ExpenseItem key={item.id} item={item} nicknames={nicknames} cardMap={cardMap} onEdit={onEdit} onDelete={onDelete} />

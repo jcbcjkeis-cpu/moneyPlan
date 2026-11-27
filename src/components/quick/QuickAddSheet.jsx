@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, CreditCard, Mic, Square, Undo2, X } from 'lucide-react';
 import Sheet from '../common/Sheet';
 import { useToast } from '../common/Toast';
@@ -11,11 +11,20 @@ const LAST_CARD_KEY = 'buboo_last_card';
 
 // 한 줄(또는 말)로 입력 → 항목별로 바로 고치기 → 한 번에 저장
 export default function QuickAddSheet({
-  isOpen, onClose, text, setText, speech, speechHelp, onDismissSpeechHelp, onMic, onSave, onUndo, onEditSaved, onOpenDetail,
+  isOpen, onClose, appendRef, speech, speechHelp, onDismissSpeechHelp, onMic, onSave, onUndo, onEditSaved, onOpenDetail,
   merchants, cards, cardMap, role, nicknames, focusOnOpen, micPrompt,
 }) {
   const toast = useToast();
   const inputRef = useRef(null);
+  const [text, setText] = useState('');
+  // 해석은 글자 반영 뒤에 (타이핑이 먼저 반응)
+  const parseText = useDeferredValue(text);
+
+  useEffect(() => {
+    if (!appendRef) return undefined;
+    appendRef.current = (t) => setText((prev) => (prev.trim() ? `${prev.trim()}, ${t}` : t));
+    return () => { appendRef.current = null; };
+  }, [appendRef]);
   const [overrides, setOverrides] = useState({});
   const [saving, setSaving] = useState(false);
 
@@ -60,7 +69,7 @@ export default function QuickAddSheet({
   };
 
   const parsed = useMemo(() => {
-    const { items, errors } = parseQuickText(text, new Date(), { cards, merchants, nicknames });
+    const { items, errors } = parseQuickText(parseText, new Date(), { cards, merchants, nicknames });
     const ctx = { merchants, cards, cardMap, role, lastCardId };
     return {
       errors,
@@ -79,7 +88,7 @@ export default function QuickAddSheet({
         })
         .filter((it) => !it.removed),
     };
-  }, [text, merchants, cards, cardMap, role, lastCardId, overrides]);
+  }, [parseText, merchants, cards, cardMap, role, lastCardId, overrides]);
 
   // 자주 쓴 곳 (지출, 많이 쓴 순) → 누르면 "스타벅스 4500" 이 입력창에 추가
   const frequent = useMemo(
@@ -149,19 +158,20 @@ export default function QuickAddSheet({
       onClose={close}
       title="빠른 입력"
       zIndex={56}
-      footer={(
-        <div className="flex gap-2">
-          <button type="button" onClick={() => { speech.cancel(); onOpenDetail(); }} className="h-[52px] px-4 rounded-2xl border border-line text-ink2 text-[15px] font-bold shrink-0">
-            자세히 입력
-          </button>
-          <button type="button" disabled={!parsed.items.length || saving || speech.listening} onClick={save} className="flex-1 h-[52px] rounded-2xl bg-ink text-card text-[16px] font-bold disabled:opacity-40 active:scale-[0.98]">
-            {saving ? '저장 중…' : parsed.items.length > 1 ? `${parsed.items.length}건 저장 · ${formatNumber(total)}원` : '저장'}
-          </button>
-        </div>
+      help={(
+            <div className="space-y-0.5">
+              <p className="font-bold text-ink mb-1">이렇게 쓰거나 말하면 돼요</p>
+              <p>· <strong>이마트 5만 2천</strong> · 여러 건은 쉼표나 그냥 이어서</p>
+              <p>· 날짜: <strong>어제</strong>, <strong>3일 전</strong>, <strong>금요일</strong>, <strong>지난주 금요일</strong>, <strong>11월 3일</strong></p>
+              <p>· 계산·수량: <strong>치킨 48000/2</strong>, <strong>커피 4500 2잔</strong>, <strong>12000+3500</strong></p>
+              <p>· 카드: <strong>{cardExample.mine}</strong>, <strong>{cardExample.other}</strong>, <strong>와이프카드</strong>, <strong>남편꺼</strong> · <strong>현금</strong>, <strong>계좌이체</strong></p>
+              <p>· 누가: <strong>와이프가</strong>, <strong>{nicknames?.husband || '남편'}</strong> · 분류: <strong>이마트 5만 장보기</strong>, <strong>#식비</strong></p>
+              <p>· <strong>개인</strong> → 개인 지출, <strong>수입</strong>·<strong>입금</strong> → 수입, <strong>환불</strong> → 돌려받은 돈</p>
+              <p>· 자주 쓴 곳을 누르면 지난번 금액으로 추가 · 아래 항목은 눌러서 바로 고치기</p>
+              {speech.isIOS && <p className="text-muted">· 아이폰은 키보드의 🎤(받아쓰기)로 말해도 똑같이 돼요.</p>}
+            </div>
       )}
-    >
-      <div className="px-5 pb-5 space-y-4">
-        {/* 입력창 + 마이크 */}
+      top={(
         <div className="flex gap-2 items-start">
           <textarea
             ref={inputRef}
@@ -188,13 +198,24 @@ export default function QuickAddSheet({
             {speech.listening ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
           </button>
         </div>
-
+      )}
+      footer={(
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { speech.cancel(); onOpenDetail(); }} className="h-[52px] px-4 rounded-2xl border border-line text-ink2 text-[15px] font-bold shrink-0">
+            자세히 입력
+          </button>
+          <button type="button" disabled={!parsed.items.length || saving || speech.listening} onClick={save} className="flex-1 h-[52px] rounded-2xl bg-ink text-card text-[16px] font-bold disabled:opacity-40 active:scale-[0.98]">
+            {saving ? '저장 중…' : parsed.items.length > 1 ? `${parsed.items.length}건 저장 · ${formatNumber(total)}원` : '저장'}
+          </button>
+        </div>
+      )}
+    >
+      <div className="px-5 pb-5 space-y-4">
         {/* 바로가기 "말로 입력"으로 열었을 때: 큰 마이크 버튼 */}
         {micPrompt && !text.trim() && !speech.listening && !speechHelp && (
           <button type="button" onClick={onMic} className="w-full rounded-3xl bg-ink text-card py-7 flex flex-col items-center gap-2 active:scale-[0.99]">
             <Mic size={40} />
             <span className="text-[17px] font-bold">눌러서 말하기</span>
-            <span className="text-[13px] opacity-70">"이마트 5만 2천"처럼 말해보세요</span>
           </button>
         )}
 
@@ -226,7 +247,7 @@ export default function QuickAddSheet({
                 <span className="absolute inline-flex w-full h-full rounded-full bg-danger opacity-60 animate-ping" />
                 <span className="relative inline-flex w-3 h-3 rounded-full bg-danger" />
               </span>
-              <span className="text-[13px] font-semibold text-danger">듣고 있어요 · 말을 멈추면 자동으로 끝나요</span>
+              <span className="text-[13px] font-semibold text-danger">듣고 있어요</span>
             </div>
             <p className={`text-[18px] font-bold leading-snug ${speech.interim ? 'text-ink' : 'text-muted'}`}>
               {speech.interim || '"이마트 5만 2천, 스타벅스 4500"'}
@@ -235,12 +256,12 @@ export default function QuickAddSheet({
           </div>
         )}
 
-        {/* 비어 있을 때: 자주 쓴 곳 + 사용법 */}
+        {/* 비어 있을 때: 자주 쓴 곳 */}
         {!text.trim() && !speech.listening && (
           <div className="space-y-4">
             {frequent.length > 0 && (
               <div>
-                <p className="text-[13px] font-semibold text-muted mb-2">자주 쓴 곳 · 누르면 지난번 금액으로 추가돼요</p>
+                <p className="text-[13px] font-semibold text-muted mb-2">자주 쓴 곳</p>
                 <div className="flex flex-wrap gap-2">
                   {frequent.map((m) => (
                     <button key={m.content} type="button" onClick={() => appendText(m.amount ? `${m.content} ${Math.round(m.amount)}` : `${m.content} `)} className="h-10 px-3.5 rounded-full border border-line bg-card text-[14px] font-semibold text-ink2 active:scale-95">
@@ -250,23 +271,13 @@ export default function QuickAddSheet({
                 </div>
               </div>
             )}
-            <div className="rounded-2xl bg-fill p-4 text-[14px] text-ink2 leading-relaxed">
-              <p className="font-bold text-ink mb-1">이렇게 쓰거나 말해보세요</p>
-              <p>· <strong>이마트 5만 2천</strong> · 여러 건은 쉼표나 그냥 이어서</p>
-              <p>· 날짜: <strong>어제</strong>, <strong>3일 전</strong>, <strong>금요일</strong>, <strong>지난주 금요일</strong>, <strong>11월 3일</strong></p>
-              <p>· 계산·수량: <strong>치킨 48000/2</strong>, <strong>커피 4500 2잔</strong>, <strong>12000+3500</strong></p>
-              <p>· 카드: <strong>{cardExample.mine}</strong>, <strong>{cardExample.other}</strong>, <strong>와이프카드</strong>, <strong>남편꺼</strong> · <strong>현금</strong>, <strong>계좌이체</strong></p>
-              <p>· 누가: <strong>와이프가</strong>, <strong>{nicknames?.husband || '남편'}</strong> · 분류: <strong>이마트 5만 장보기</strong>, <strong>#식비</strong></p>
-              <p>· <strong>개인</strong> → 개인 지출, <strong>수입</strong>·<strong>입금</strong> → 수입, <strong>환불</strong> → 돌려받은 돈</p>
-              {speech.isIOS && <p className="mt-1 text-muted">· 아이폰은 키보드의 🎤(받아쓰기)로 말해도 똑같이 돼요.</p>}
-            </div>
           </div>
         )}
 
         {/* 미리보기: 항목마다 바로 고치기 */}
         {parsed.items.length > 0 && !speech.listening && (
           <div className="space-y-2">
-            <p className="text-[13px] font-semibold text-muted px-1 num">{parsed.items.length}건 · 눌러서 바로 고칠 수 있어요</p>
+            <p className="text-[13px] font-semibold text-muted px-1 num">{parsed.items.length}건</p>
             {parsed.items.map((it) => {
               const cats = it.income ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
               return (
@@ -334,7 +345,7 @@ export default function QuickAddSheet({
                     )}
                   </div>
                   {!it.income && it.payer !== role && (
-                    <p className="text-[12px] text-muted mt-1.5">{nameOf(it.payer)}님 카드라서 {nameOf(it.payer)}님 결제로 저장돼요.</p>
+                    <p className="text-[12px] text-muted mt-1.5">{nameOf(it.payer)}님 결제로 저장</p>
                   )}
                 </div>
               );

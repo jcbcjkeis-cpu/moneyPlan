@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { HelpTitle } from '../common/Help';
 import { ChevronLeft, ChevronRight, ChevronRight as Go } from 'lucide-react';
 import { normalizeCategory } from '../../constants/categories';
 import { formatNumber, toNumber } from '../../lib/format';
@@ -177,10 +178,14 @@ export default function StatisticsTab({
 
           {/* 추이 */}
           <div className={card}>
-            <div className="flex items-baseline justify-between mb-4">
-              <h3 className="text-[15px] font-bold text-ink">{range.trendTitle}</h3>
-              <span className="text-[12px] text-muted num">평균 {formatNumber(trendAvg)}원 · 막대를 누르면 값</span>
-            </div>
+            <HelpTitle
+              className="text-[15px] font-bold text-ink"
+              wrapClassName="mb-3"
+              help="막대를 누르면 그 기간 금액이 보여요. '표로 보기'로 숫자만 볼 수도 있어요."
+              right={<span className="text-[12px] text-muted num">평균 {formatNumber(trendAvg)}원</span>}
+            >
+              {range.trendTitle}
+            </HelpTitle>
             <ColumnChart data={trend} ariaLabel={`${range.trendTitle} 지출 막대 그래프`} />
           </div>
 
@@ -222,7 +227,7 @@ export default function StatisticsTab({
 
           {/* 카테고리별 */}
           <div className={listCard}>
-            <h3 className="text-[15px] font-bold text-ink px-5 pt-5 pb-2">카테고리별 지출</h3>
+            <div className="px-5 pt-4 pb-1"><HelpTitle className="text-[15px] font-bold text-ink" help="카테고리를 누르면 이 기간의 그 카테고리 내역만 검색해요.">카테고리별 지출</HelpTitle></div>
             {categoryStats.length > 0 ? (
               <ul>
                 {categoryStats.map((cat) => (
@@ -251,7 +256,7 @@ export default function StatisticsTab({
           {/* 사용처 TOP 10 */}
           {merchantTop.length > 0 && (
             <div className={listCard}>
-              <h3 className="text-[15px] font-bold text-ink px-5 pt-5 pb-2">많이 쓴 곳 TOP {merchantTop.length}</h3>
+              <div className="px-5 pt-4 pb-1"><HelpTitle className="text-[15px] font-bold text-ink" help="사용처를 누르면 이 기간의 그 사용처 내역만 검색해요.">많이 쓴 곳 TOP {merchantTop.length}</HelpTitle></div>
               <ol>
                 {merchantTop.map((m, i) => (
                   <li key={m.name}>
@@ -270,7 +275,7 @@ export default function StatisticsTab({
           {/* 큰 지출 TOP 5 */}
           {biggest.length > 0 && (
             <div className={listCard}>
-              <h3 className="text-[15px] font-bold text-ink px-5 pt-5 pb-2">가장 큰 지출</h3>
+              <div className="px-5 pt-4 pb-1"><HelpTitle className="text-[15px] font-bold text-ink" help="누르면 그 내역을 바로 고칠 수 있어요.">가장 큰 지출</HelpTitle></div>
               {biggest.map((e) => (
                 <button key={e.id} type="button" onClick={() => onEditExpense(e)} className="w-full text-left px-5 py-2.5 active:bg-fill flex items-center gap-3 num">
                   <span className="text-[12px] text-muted w-11 shrink-0">{Number(e.expense_date.slice(5, 7))}/{Number(e.expense_date.slice(8))}</span>
@@ -285,8 +290,9 @@ export default function StatisticsTab({
           {/* 결제수단별 */}
           {cardSummary.length > 0 && (
             <div className={listCard}>
-              <h3 className="text-[15px] font-bold text-ink px-5 pt-5 pb-1">결제수단별 사용액</h3>
-              <p className="text-[13px] text-muted px-5 pb-2">사용한 날짜 기준이에요. 신용카드 청구액과는 다를 수 있어요.</p>
+              <div className="px-5 pt-4 pb-1">
+                <HelpTitle className="text-[15px] font-bold text-ink" wrapClassName="" help="사용한 날짜 기준이에요. 신용카드 청구액과는 다를 수 있어요.">결제수단별 사용액</HelpTitle>
+              </div>
               {cardSummary.map((c) => (
                 <div key={c.id} className="px-5 py-3 flex items-center justify-between gap-3 border-t border-line">
                   <div className="min-w-0">

@@ -364,6 +364,15 @@ export default function ExpenseInputModal({
       isOpen={isOpen}
       onClose={onClose}
       title={editTarget ? '내역 수정' : isIncome ? '수입 입력' : '지출 입력'}
+      help={(
+        <div className="space-y-0.5">
+          <p>· 금액 옆 <strong>+ − × ÷</strong>로 계산, <strong>반반</strong>은 절반으로</p>
+          <p>· 날짜를 누르면 <strong>오늘 · 어제 · 그제 · 3일 전</strong> 바로 고르기</p>
+          <p>· 사용처를 쓰면 카테고리가 <strong>자동</strong>으로 골라져요. 직접 누르면 그대로 유지</p>
+          <p>· 전에 쓴 곳이면 <strong>지난번</strong> 카드·금액을 [적용]으로 한 번에</p>
+          <p>· 저장 뒤 알림의 <strong>수정</strong>을 누르면 방금 입력한 걸 바로 고쳐요</p>
+        </div>
+      )}
       footer={footer}
       zIndex={55}
       headerRight={!editTarget && (
@@ -375,7 +384,6 @@ export default function ExpenseInputModal({
       <form onSubmit={(e) => { e.preventDefault(); submit(false); }} onFocusCapture={keepVisible} className="px-5 pb-4 space-y-4">
         {smsOpen && (
           <div className="p-3 bg-fill rounded-2xl space-y-2 animate-fade-in">
-            <p className="text-[13px] text-ink2">카드 승인 문자를 붙여넣으면 금액·사용처·날짜·카드를 채워드려요.</p>
             {typeof navigator !== 'undefined' && navigator.clipboard?.readText && (
               <button type="button" onClick={pasteFromClipboard} className="w-full h-11 rounded-xl bg-ink text-card text-[14px] font-bold flex items-center justify-center gap-1.5">
                 <ClipboardPaste size={17} /> 복사한 문자 붙여넣기

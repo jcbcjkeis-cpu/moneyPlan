@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import Sheet from '../common/Sheet';
+import { HelpTitle } from '../common/Help';
 import SiriSetup from './SiriSetup';
 import { APP_VERSION } from '../../constants/version';
 import NotificationSettings from './NotificationSettings';
@@ -87,16 +88,14 @@ export default function SettingsModal({
         {tab === 'us' && (
           <>
             <section className={block}>
-              <h3 className={title}>이 휴대폰은 누구 건가요?</h3>
-              <p className={desc}>새 내역의 결제자와 카드 기본값에 쓰여요.</p>
+              <HelpTitle className={title} help={<>새 내역의 결제자와 카드 기본값에 쓰여요.</>}>이 휴대폰은 누구 건가요?</HelpTitle>
               <div className={segWrap}>
                 <button type="button" onClick={() => onRoleChange('husband')} className={seg(currentUserRole === 'husband', 'text-husband')}>{nicknames.husband}</button>
                 <button type="button" onClick={() => onRoleChange('wife')} className={seg(currentUserRole === 'wife', 'text-wife')}>{nicknames.wife}</button>
               </div>
             </section>
             <section className={block}>
-              <h3 className={title}>별명</h3>
-              <p className={desc}>두 휴대폰 모두에 같이 적용돼요.</p>
+              <HelpTitle className={title} help={<>두 휴대폰 모두에 같이 적용돼요.</>}>별명</HelpTitle>
               <form onSubmit={(e) => { e.preventDefault(); if (!hName.trim() || !wName.trim()) { toast('두 사람의 별명을 모두 입력해주세요.', 'error'); return; } run('nick', () => onUpdateNicknames(hName, wName), '별명을 저장했어요.'); }} className="space-y-2">
                 <div className="flex gap-2">
                   <input type="text" value={hName} onChange={(e) => setHName(e.target.value)} placeholder="남편" className={input} aria-label="남편 별명" />
@@ -111,8 +110,7 @@ export default function SettingsModal({
         {tab === 'cards' && (
           <>
             <section className={block}>
-              <h3 className={title}>결제 수단 추가</h3>
-              <p className={desc}>이름에 카드사(신한, KB, 현대 등)를 넣으면 카드 문자로 입력할 때 자동 선택돼요.</p>
+              <HelpTitle className={title} help={<>이름에 카드사(신한, KB, 현대 등)를 넣으면 카드 문자로 입력할 때 자동 선택돼요.</>}>결제 수단 추가</HelpTitle>
               <form onSubmit={async (e) => { e.preventDefault(); if (!newCardName.trim()) { toast('카드 이름을 입력해주세요.', 'error'); return; } if (await run('card', () => onAddCard(newCardName.trim(), newCardOwner, newCardType), `'${newCardName.trim()}'을(를) 추가했어요.`)) setNewCardName(''); }} className="space-y-2">
                 <div className={segWrap}>
                   <button type="button" onClick={() => setNewCardOwner('husband')} className={seg(newCardOwner === 'husband', 'text-husband')}>{nicknames.husband}</button>
@@ -129,8 +127,7 @@ export default function SettingsModal({
               </form>
             </section>
             <section className={block}>
-              <h3 className={title}>사용 중인 결제 수단</h3>
-              <p className={desc}>숨겨도 지난 내역은 그대로 남아요.</p>
+              <HelpTitle className={title} help={<>숨겨도 지난 내역은 그대로 남아요.</>}>사용 중인 결제 수단</HelpTitle>
               <div className="rounded-2xl border border-line overflow-hidden">
                 {cards.length === 0 && <p className="p-4 text-[14px] text-muted">등록된 카드가 없어요.</p>}
                 {cards.map((card) => (
@@ -153,8 +150,7 @@ export default function SettingsModal({
         {tab === 'budget' && (
           <>
             <section className={block}>
-              <h3 className={title}>월 지출 예산</h3>
-              <p className={desc}>개인 지출을 포함한 한 달 전체 지출 기준이에요. 80%와 100%를 넘으면 알려드려요.</p>
+              <HelpTitle className={title} help={<>개인 지출을 포함한 한 달 전체 지출 기준이에요. 80%와 100%를 넘으면 알려드려요.</>}>월 지출 예산</HelpTitle>
               <form onSubmit={(e) => { e.preventDefault(); const n = Number(inputBudget); if (!n) { toast('예산 금액을 입력해주세요.', 'error'); return; } run('budget', () => onUpdateBudget(n), `월 예산을 ${formatNumber(n)}원으로 바꿨어요.`); }} className="flex gap-2">
                 <input type="text" inputMode="numeric" value={inputBudget ? formatNumber(inputBudget) : ''} onChange={(e) => setInputBudget(onlyDigits(e.target.value).slice(0, 12))} className={`${input} num`} aria-label="월 예산(원)" />
                 <button type="submit" disabled={busy === 'budget'} className={primary}>저장</button>
@@ -193,16 +189,14 @@ export default function SettingsModal({
         {tab === 'app' && (
           <>
             <section className={block}>
-              <h3 className={title}>아래 + 버튼을 누르면</h3>
-              <p className={desc}>빠른 입력은 "이마트 5만 2천"처럼 한 줄로, 자세히 입력은 항목을 하나씩 골라서 입력해요.</p>
+              <HelpTitle className={title} help={<>빠른 입력은 "이마트 5만 2천"처럼 한 줄로, 자세히 입력은 항목을 하나씩 골라서 입력해요.</>}>아래 + 버튼을 누르면</HelpTitle>
               <div className={segWrap}>
                 <button type="button" onClick={() => onPlusActionChange('quick')} className={seg(plusAction === 'quick')}>빠른 입력</button>
                 <button type="button" onClick={() => onPlusActionChange('detail')} className={seg(plusAction !== 'quick')}>자세히 입력</button>
               </div>
             </section>
             <section className={block}>
-              <h3 className={title}>화면 모드</h3>
-              <p className={desc}>'기기 설정'을 고르면 휴대폰의 다크 모드를 따라가요.</p>
+              <HelpTitle className={title} help={<>'기기 설정'을 고르면 휴대폰의 다크 모드를 따라가요.</>}>화면 모드</HelpTitle>
               <div className={segWrap}>
                 {THEMES.map(({ id, label, Icon }) => (
                   <button key={id} type="button" onClick={() => onThemeChange(id)} className={`${seg(theme === id)} flex items-center justify-center gap-1.5`}>
@@ -212,8 +206,7 @@ export default function SettingsModal({
               </div>
             </section>
             <section className={block}>
-              <h3 className={title}>홈 배경 사진</h3>
-              <p className={desc}>홈 화면 맨 위 예산 영역에만 보여요.</p>
+              <HelpTitle className={title} help={<>홈 화면 맨 위 예산 영역에만 보여요.</>}>홈 배경 사진</HelpTitle>
               <div className="w-full h-24 rounded-2xl overflow-hidden mb-2 bg-fill">
                 <img src={bgImageUrl} alt="현재 배경" decoding="async" loading="lazy" className="w-full h-full object-cover" />
               </div>
@@ -224,8 +217,7 @@ export default function SettingsModal({
               </div>
             </section>
             <section className={block}>
-              <h3 className={title}>Siri로 입력하기 (아이폰)</h3>
-              <p className={desc}>이 휴대폰 사용자({currentUserRole === 'husband' ? nicknames.husband : nicknames.wife}) 기준 값이에요. 상대방 폰에서는 그 폰의 설정 화면에서 복사하세요.</p>
+              <HelpTitle className={title} help={<>이 휴대폰 사용자({currentUserRole === 'husband' ? nicknames.husband : nicknames.wife}) 기준 값이에요. 상대방 폰에서는 그 폰의 설정 화면에서 복사하세요.</>}>Siri로 입력하기 (아이폰)</HelpTitle>
               <SiriSetup currentUserRole={currentUserRole} nicknames={nicknames} />
             </section>
           </>

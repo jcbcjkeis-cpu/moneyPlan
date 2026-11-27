@@ -15,6 +15,7 @@ export default function DaySheet({ isOpen, onClose, ymd, expenses, nicknames, ca
       isOpen={isOpen}
       onClose={onClose}
       title={formatDateLabel(ymd)}
+      help="내역을 누르면 수정, 왼쪽으로 밀면 삭제할 수 있어요."
       maxHeight="75vh"
       footer={(
         <button type="button" onClick={onAdd} className="w-full h-[52px] rounded-2xl bg-ink text-card text-[16px] font-bold flex items-center justify-center gap-1.5 active:scale-[0.98]">
@@ -36,7 +37,6 @@ export default function DaySheet({ isOpen, onClose, ymd, expenses, nicknames, ca
             {items.map((item) => (
               <ExpenseItem key={item.id} item={item} nicknames={nicknames} cardMap={cardMap} onEdit={onEdit} onDelete={onDelete} />
             ))}
-            <p className="text-center text-[12px] text-muted pt-2">내역을 왼쪽으로 밀면 삭제할 수 있어요</p>
           </div>
         )}
       </div>

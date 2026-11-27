@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Merge, Search, Sparkles } from 'lucide-react';
+import { HelpTitle } from '../common/Help';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../common/Toast';
 import { editDistance, squash } from '../../lib/quickParse';
@@ -171,8 +172,7 @@ export default function MerchantManager({ onChanged }) {
     <div className="space-y-6 py-5">
       {fixable.length > 0 && (
         <section>
-          <h3 className="text-[15px] font-bold text-ink mb-1">'기타'로 들어간 내역 자동 분류</h3>
-          <p className="text-[13px] text-muted mb-3">이름을 보고 카테고리를 찾았어요. 아닌 건 눌러서 빼고 분류하세요.</p>
+          <HelpTitle className="text-[15px] font-bold text-ink" help="이름을 보고 카테고리를 찾았어요. 아닌 건 눌러서 빼고 분류하세요. 분류한 뒤에도 되돌릴 수 있어요.">'기타'로 들어간 내역 자동 분류</HelpTitle>
           <div className="rounded-2xl border border-line overflow-hidden max-h-[300px] overflow-y-auto overscroll-contain">
             {fixable.map((f) => {
               const on = !skipFix.has(f.key);
@@ -198,8 +198,7 @@ export default function MerchantManager({ onChanged }) {
       )}
 
       <section>
-        <h3 className="text-[15px] font-bold text-ink mb-1">비슷한 이름 합치기 제안</h3>
-        <p className="text-[13px] text-muted mb-3">같은 곳인데 이름이 흩어져 있으면 통계와 추천이 정확하지 않아요. 남길 이름을 고르고 합치세요.</p>
+        <HelpTitle className="text-[15px] font-bold text-ink" help="같은 곳인데 이름이 흩어져 있으면 통계와 추천이 정확하지 않아요. 묶음마다 남길 이름을 누르고 합치세요. 합친 뒤에도 되돌릴 수 있어요.">비슷한 이름 합치기 제안</HelpTitle>
         {suggestions.length === 0 ? (
           <p className="text-[14px] text-muted rounded-2xl bg-fill p-4">비슷한 이름이 없어요. 아래에서 직접 골라 합칠 수도 있어요.</p>
         ) : (
@@ -209,7 +208,6 @@ export default function MerchantManager({ onChanged }) {
               const target = picked[key] || g[0].name;
               return (
                 <div key={key} className="rounded-2xl border border-line p-3.5">
-                  <p className="text-[12px] text-muted mb-2">남길 이름을 누르세요</p>
                   <div className="flex flex-wrap gap-1.5">
                     {g.map((m) => (
                       <button key={m.name} type="button" onClick={() => setPicked((p) => ({ ...p, [key]: m.name }))} className={chip(target === m.name)}>
@@ -231,8 +229,7 @@ export default function MerchantManager({ onChanged }) {
       </section>
 
       <section>
-        <h3 className="text-[15px] font-bold text-ink mb-1">직접 골라 합치기</h3>
-        <p className="text-[13px] text-muted mb-3">예: "emart"와 "이마트"처럼 자동으로 못 찾는 이름. 두 개 이상 고르세요.</p>
+        <HelpTitle className="text-[15px] font-bold text-ink" help={'"emart"와 "이마트"처럼 자동으로 못 찾는 이름을 두 개 이상 골라서 합쳐요.'}>직접 골라 합치기</HelpTitle>
         <div className="relative mb-2">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="사용처 검색" className="w-full h-11 bg-fill rounded-xl pl-9 pr-3 text-base text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-husband" aria-label="사용처 검색" />

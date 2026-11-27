@@ -1,14 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CalendarHome from './components/calendar/CalendarHome';
 import DaySheet from './components/calendar/DaySheet';
 import BottomNav from './components/common/BottomNav';
 import PwaInstallManager from './components/common/PwaInstallManager';
 import { useToast } from './components/common/Toast';
 import ExpenseInputModal from './components/modal/ExpenseInputModal';
-import SettingsModal from './components/modal/SettingsModal';
 import RoleSelectModal from './components/modal/RoleSelectModal';
 import SearchSheet from './components/search/SearchSheet';
-import StatisticsTab from './components/statistics/StatisticsTab';
 import { useExpenses, useExpenseMutations } from './hooks/useExpenses';
 import { useSettings } from './hooks/useSettings';
 import { useHistory } from './hooks/useHistory';
@@ -25,6 +23,13 @@ import QuickAddSheet from './components/quick/QuickAddSheet';
 import SavedListSheet from './components/quick/SavedListSheet';
 import { exportExpensesToCsv } from './utils/exportToCsv';
 
+// 통계·설정은 처음 열 때 불러옴 → 앱 켜는 속도 개선 (켜진 뒤 한가할 때 미리 받아둠)
+const loadStats = () => import('./components/statistics/StatisticsTab');
+const loadSettings = () => import('./components/modal/SettingsModal');
+const StatisticsTab = lazy(loadStats);
+const SettingsModal = lazy(loadSettings);
+const TabLoading = () => <p className="py-16 text-center text-[14px] text-muted">불러오는 중…</p>;
+
 const readLocal = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
 const writeLocal = (key, v) => { try { localStorage.setItem(key, v); } catch { /* 무시 */ } };
 const UNDO_MS = 4500;
@@ -37,6 +42,14 @@ export default function App() {
   const [editTarget, setEditTarget] = useState(null);
   const [initialSms, setInitialSms] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsMounted, setSettingsMounted] = useState(false);
+  useEffect(() => { if (isSettingsOpen) setSettingsMounted(true); }, [isSettingsOpen]);
+  // 앱이 뜬 뒤 한가할 때 통계·설정 코드를 미리 받아둠 (처음 누를 때 기다림 없게)
+  useEffect(() => {
+    const preload = () => { loadStats(); loadSettings(); };
+    const id = window.requestIdleCallback ? window.requestIdleCallback(preload, { timeout: 4000 }) : setTimeout(preload, 2500);
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(id) : clearTimeout(id));
+  }, []);
   const [isDayOpen, setIsDayOpen] = useState(false);
   const [search, setSearch] = useState({ open: false, category: '' });
   const [viewMode, setViewMode] = useState(() => readLocal('buboo_view_mode') || 'calendar');
@@ -49,7 +62,7 @@ export default function App() {
   const deleteTimers = useRef(new Map());
   const focusProxy = useRef(null);
   const [quick, setQuick] = useState({ open: false, focus: false });
-  const [quickText, setQuickText] = useState('');
+  const quickAppend = useRef(null); // 빠른 입력 창에 말한 내용 이어 붙이기 (입력 글자는 창 안에서만 관리 → 타이핑할 때 앱 전체가 다시 그려지지 않음)
   const speech = useSpeech();
   const [speechHelp, setSpeechHelp] = useState('');
   const [savedIds, setSavedIds] = useState(null); // 빠른 입력으로 방금 저장한 여러 건
@@ -215,7 +228,7 @@ export default function App() {
         const picked = segments.map((alts) => alts.reduce((best, t) => (
           scoreTranscript(t, { merchants, cards, nicknames }) > scoreTranscript(best, { merchants, cards, nicknames }) ? t : best
         ), alts[0])).join(' ');
-        setQuickText((prev) => (prev.trim() ? `${prev.trim()}, ${picked}` : picked));
+        quickAppend.current?.(picked);
       },
       // 실패하면 빠른 입력 화면에 '키보드 받아쓰기' 안내를 띄움 (아이폰은 버튼을 눌러야 키보드가 열림)
       onError: (msg) => setSpeechHelp(msg),
@@ -274,6 +287,7 @@ export default function App() {
           />
         )}
         {currentTab === 'statistics' && (
+          <Suspense fallback={<TabLoading />}>
           <StatisticsTab
             expenses={expenses}
             prevMonthExpenses={prevMonthExpenses}
@@ -291,6 +305,7 @@ export default function App() {
             allCards={allCards}
             cardMap={cardMap}
           />
+          </Suspense>
         )}
       </main>
 
@@ -335,8 +350,7 @@ export default function App() {
         focusOnOpen={quick.focus}
         micPrompt={quick.mic}
         onClose={() => { setQuick({ open: false, focus: false }); setSpeechHelp(''); }}
-        text={quickText}
-        setText={setQuickText}
+        appendRef={quickAppend}
         speech={speech}
         speechHelp={speechHelp}
         onDismissSpeechHelp={() => setSpeechHelp('')}
@@ -389,6 +403,8 @@ export default function App() {
         onInitialSmsUsed={() => setInitialSms(null)}
       />
 
+      {settingsMounted && (
+      <Suspense fallback={null}>
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -416,6 +432,8 @@ export default function App() {
         onRefreshSettings={settings.refreshSettings}
         onDataChanged={bump}
       />
+      </Suspense>
+      )}
 
       {!role && <RoleSelectModal nicknames={nicknames} onSelect={handleRoleChange} />}
     </div>

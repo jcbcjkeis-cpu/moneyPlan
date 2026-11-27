@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Bell, BellOff, Check, ChevronDown, Copy, ExternalLink, KeyRound, Send } from 'lucide-react';
+import { HelpTitle } from '../common/Help';
 import { useToast } from '../common/Toast';
 import { supabaseUrl } from '../../lib/supabase';
 import {
@@ -135,7 +136,7 @@ export default function NotificationSettings({ role, nicknames, push, onSaveVapi
     <div className="space-y-6 py-5">
       {/* 이 휴대폰 알림 */}
       <section>
-        <h3 className="text-[15px] font-bold text-ink mb-1">이 휴대폰({name}) 알림</h3>
+        <HelpTitle className="text-[15px] font-bold text-ink" help="내가 입력한 건 나에게 오지 않고 배우자 폰에만 가요. 두 사람 모두 각자 폰에서 알림을 켜야 해요.">이 휴대폰({name}) 알림</HelpTitle>
         {!avail.ok ? (
           <div className="rounded-2xl bg-warn-soft p-4 text-[14px] text-ink2 leading-relaxed mt-2">
             {avail.reason === 'ios-browser' ? (
@@ -174,7 +175,6 @@ export default function NotificationSettings({ role, nicknames, push, onSaveVapi
             )}
           </div>
         )}
-        <p className="text-[13px] text-muted mt-2 px-1">내가 입력한 건 나에게 오지 않고 배우자 폰에만 가요. 두 사람 모두 각자 폰에서 알림을 켜야 해요.</p>
       </section>
 
       {serverReady && <PushDiagnostics role={role} nicknames={nicknames} functionUrl={push.functionUrl} />}
